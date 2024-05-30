@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <script src="../../dist/vue.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="app2"></div>
+</body>
+<script>
+  const {reactive,effect} = Vue
+  const state = reactive({
+    name:"Tang"
+  })
+  effect(()=>{
+    let elem = document.querySelector('#app')
+    elem.innerHTML = state.name
+  })
+  effect(()=>{
+    let elem = document.querySelector('#app2')
+    elem.innerHTML = state.name
+  })
+  setTimeout(()=>{
+    state.name = "Tang2"
+  },2000)
+</script>
+</html> 
