@@ -8,11 +8,17 @@
 </head>
 <body>
   <div id="app"></div>
-  <div id="app2"></div>
+  <script>
+    const { reactive, computed,effect } = Vue
+    const state = reactive({
+      count: 2
+    })
+    const double = computed(()=>{
+      return state.count * 2
+    })
+    effect(()=>{
+      document.querySelector('#app').innerText = double.value
+    })
+  </script>  
 </body>
-<script>
-  const {ref,effect} = Vue
-  const name = ref('Tang')
-  console.log(name)
-</script>
-</html>  
+</html>

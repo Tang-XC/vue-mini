@@ -1,8 +1,10 @@
+import { ComputedRefImpl } from './computed'
 import {Dep,createDep} from './dep'
 type keyToDepMap = Map<any,Dep>
 
 // 存储依赖
 const targetMap = new WeakMap<any,keyToDepMap>()
+export type EffectScheduler = (...args:any[])=>void
 export function effect<T = any>(fn:()=>T){
   const _effect = new ReactiveEffect(fn)
   _effect.run()
@@ -10,7 +12,8 @@ export function effect<T = any>(fn:()=>T){
 // 当前正在执行的effect
 export let activeEffect:ReactiveEffect | undefined
 export class ReactiveEffect<T = any>{
-  constructor(public fn:()=>T){
+  computed?:ComputedRefImpl<T>
+  constructor(public fn:()=>T,public scheduler:EffectScheduler | null = null){
 
   }
   run(){
@@ -18,7 +21,7 @@ export class ReactiveEffect<T = any>{
     return this.fn();
   }
 }
-
+ 
 
 /**
  * 收集依赖
@@ -60,5 +63,10 @@ export function triggerEffects(dep:Dep){
   }
 }
 export function triggerEffect(effect: ReactiveEffect){
-  effect.run()
+  if(effect.scheduler){
+    effect.scheduler()
+  } else {
+    effect.run()
+  }
+  // effect.run()
 }

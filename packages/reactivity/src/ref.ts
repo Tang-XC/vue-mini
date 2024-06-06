@@ -1,6 +1,7 @@
 import { Dep, createDep } from "./dep";
 import { activeEffect, trackEffects, triggerEffects } from "./effect";
 import {toReactive} from './reactive'
+import {ComputedRefImpl} from './computed'
 export interface Ref<T = any> {
   value:T
 }
@@ -21,7 +22,7 @@ class RefImpl<T> {
     this._rawValue = value
     this._value = __v_isShallow ? value : toReactive(value)
   }
-  get value(){
+  get value(){           
     trackRefValue(this)
     return this._value
   }
@@ -33,12 +34,12 @@ class RefImpl<T> {
     }
   }
 }
-export function trackRefValue(ref:RefImpl<any>){
+export function trackRefValue(ref:RefImpl<any> | ComputedRefImpl<any>){
   if(activeEffect){
     trackEffects(ref.dep || (ref.dep = createDep()))
   }
 }
-export function triggerRefValue(ref:RefImpl<any>){
+export function triggerRefValue(ref:RefImpl<any> | ComputedRefImpl<any>){
   if(ref.dep){
     triggerEffects(ref.dep)
   }
