@@ -54,8 +54,6 @@ export function trigger(target:object,key:unknown,newValue:unknown){
   triggerEffects(dep)
 }
 export function triggerEffects(dep:Dep){
-  console.log(dep)
-  console.log([...dep])
   const effects = dep instanceof Array ? dep : [...dep]
   for (const effect of effects){
     triggerEffect(effect)

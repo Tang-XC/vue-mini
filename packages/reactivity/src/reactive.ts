@@ -17,3 +17,6 @@ function createReactiveObject(
   proxyMap.set(target, proxy)
   return proxy
 }
+export const toReactive = <T extends unknown>(value:T):T=>{
+  return typeof Object === 'object' ? reactive(value as Object) : value
+}
