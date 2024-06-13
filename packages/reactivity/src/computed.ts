@@ -4,7 +4,7 @@ import { trackRefValue, triggerRefValue } from './ref'
 export class ComputedRefImpl<T>{
   public dep?:Dep = undefined
   private _value!: T
-  public readonly effect: ReactiveEffect<T>
+  public readonly effect: ReactiveEffect<T> 
   public readonly __v_isRef = true
   public _dirty:Boolean = true
   constructor(getter){

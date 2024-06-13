@@ -62,9 +62,14 @@ var Vue = (function (exports) {
 
     // 存储依赖
     var targetMap = new WeakMap();
-    function effect(fn) {
+    function effect(fn, options) {
         var _effect = new ReactiveEffect(fn);
-        _effect.run();
+        if (options) {
+            Object.assign(_effect, options);
+        }
+        if (!options || !options.lazy) {
+            _effect.run();
+        }
     }
     // 当前正在执行的effect
     var activeEffect;
@@ -117,12 +122,14 @@ var Vue = (function (exports) {
         triggerEffects(dep);
     }
     function triggerEffects(dep) {
-        var e_1, _a;
+        var e_1, _a, e_2, _b;
         var effects = dep instanceof Array ? dep : __spreadArray([], __read(dep), false);
         try {
             for (var effects_1 = __values(effects), effects_1_1 = effects_1.next(); !effects_1_1.done; effects_1_1 = effects_1.next()) {
                 var effect_1 = effects_1_1.value;
-                triggerEffect(effect_1);
+                if (effect_1.computed) {
+                    triggerEffect(effect_1);
+                }
             }
         }
         catch (e_1_1) { e_1 = { error: e_1_1 }; }
@@ -131,6 +138,21 @@ var Vue = (function (exports) {
                 if (effects_1_1 && !effects_1_1.done && (_a = effects_1.return)) _a.call(effects_1);
             }
             finally { if (e_1) throw e_1.error; }
+        }
+        try {
+            for (var effects_2 = __values(effects), effects_2_1 = effects_2.next(); !effects_2_1.done; effects_2_1 = effects_2.next()) {
+                var effect_2 = effects_2_1.value;
+                if (!effect_2.computed) {
+                    triggerEffect(effect_2);
+                }
+            }
+        }
+        catch (e_2_1) { e_2 = { error: e_2_1 }; }
+        finally {
+            try {
+                if (effects_2_1 && !effects_2_1.done && (_b = effects_2.return)) _b.call(effects_2);
+            }
+            finally { if (e_2) throw e_2.error; }
         }
     }
     function triggerEffect(effect) {
@@ -147,15 +169,16 @@ var Vue = (function (exports) {
     var set = createSetter();
     function createGetter() {
         return function get(target, key, receiver) {
+            // 为什么要使用Reflect.get获取值，因为getter中可能会有get操作，所以需要使用Reflect.get
             var res = Reflect.get(target, key, receiver);
-            track(target, key);
+            track(target, key); // 这一步是为了触发依赖收集，
             return res;
         };
     }
     function createSetter() {
         return function set(target, key, value, receiver) {
             var result = Reflect.set(target, key, value, receiver);
-            trigger(target, key);
+            trigger(target, key); // 触发依赖更新
             return result;
         };
     }
@@ -266,8 +289,39 @@ var Vue = (function (exports) {
         return cRef;
     }
 
+    var isFlushPending = false;
+    var resolvedPromise = Promise.resolve();
+    var pendingPreFlushCbs = [];
+    function queuePreFlushCb(cb) {
+        queueCb(cb, pendingPreFlushCbs);
+    }
+    function queueCb(cb, pendingQueue) {
+        pendingQueue.push(cb);
+        queueFlush();
+    }
+    function queueFlush() {
+        if (!isFlushPending) {
+            isFlushPending = true;
+            resolvedPromise.then(flushJobs);
+        }
+    }
+    function flushJobs() {
+        isFlushPending = false;
+        flushPreFlushCbs();
+    }
+    function flushPreFlushCbs() {
+        if (pendingPreFlushCbs.length) {
+            var activePreFlushCbs = __spreadArray([], __read(new Set(pendingPreFlushCbs)), false);
+            pendingPreFlushCbs.length = 0;
+            for (var i = 0; i < activePreFlushCbs.length; i++) {
+                activePreFlushCbs[i]();
+            }
+        }
+    }
+
     exports.computed = computed;
     exports.effect = effect;
+    exports.queuePreFlushCb = queuePreFlushCb;
     exports.reactive = reactive;
     exports.ref = ref;
 

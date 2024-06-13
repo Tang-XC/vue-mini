@@ -5,23 +5,30 @@ type keyToDepMap = Map<any,Dep>
 // 存储依赖
 const targetMap = new WeakMap<any,keyToDepMap>()
 export type EffectScheduler = (...args:any[])=>void
-export function effect<T = any>(fn:()=>T){
+export interface ReactiveEffectOptions {
+  lazy?:boolean,
+  scheduler?:EffectScheduler
+}
+export function effect<T = any>(fn:()=>T,options?:ReactiveEffectOptions){
   const _effect = new ReactiveEffect(fn)
-  _effect.run()
+  if(options){
+    Object.assign(_effect,options)
+  }
+  if(!options || !options.lazy){
+    _effect.run()
+  }
 }
 // 当前正在执行的effect
 export let activeEffect:ReactiveEffect | undefined
 export class ReactiveEffect<T = any>{
   computed?:ComputedRefImpl<T>
   constructor(public fn:()=>T,public scheduler:EffectScheduler | null = null){
-
   }
   run(){
     activeEffect = this
     return this.fn();
   }
 }
- 
 
 /**
  * 收集依赖
@@ -59,7 +66,14 @@ export function trigger(target:object,key:unknown,newValue:unknown){
 export function triggerEffects(dep:Dep){
   const effects = dep instanceof Array ? dep : [...dep]
   for (const effect of effects){
-    triggerEffect(effect)
+    if(effect.computed){
+      triggerEffect(effect)
+    }
+  }
+  for (const effect of effects){
+    if(!effect.computed){
+      triggerEffect(effect)
+    }
   }
 }
 export function triggerEffect(effect: ReactiveEffect){
