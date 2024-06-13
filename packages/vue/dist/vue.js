@@ -83,6 +83,8 @@ var Vue = (function (exports) {
             activeEffect = this;
             return this.fn();
         };
+        ReactiveEffect.prototype.stop = function () {
+        };
         return ReactiveEffect;
     }());
     /**
@@ -197,12 +199,16 @@ var Vue = (function (exports) {
             return existingProxy;
         }
         var proxy = new Proxy(target, baseHandlers);
+        proxy["__v_isReactive" /* ReactiveFlags.IS_REACTIVE */] = true;
         proxyMap.set(target, proxy);
         return proxy;
     }
     var toReactive = function (value) {
         return typeof Object === 'object' ? reactive(value) : value;
     };
+    function isReactive(value) {
+        return !!(value && value["__v_isReactive" /* ReactiveFlags.IS_REACTIVE */]);
+    }
 
     function ref(value) {
         return createRef(value, false);
@@ -319,11 +325,65 @@ var Vue = (function (exports) {
         }
     }
 
+    function watch(source, cb, options) {
+        return doWatch(source, cb, options);
+    }
+    function doWatch(source, cb, _a) {
+        var _b = _a === void 0 ? {} : _a, immediate = _b.immediate, deep = _b.deep;
+        var getter;
+        if (isReactive(source)) {
+            getter = function () { return source; };
+            deep = true;
+        }
+        else {
+            getter = function () { };
+        }
+        if (cb && deep) {
+            var baseGetter_1 = getter;
+            getter = function () { return traverse(baseGetter_1()); };
+        }
+        var oldValue = {};
+        var job = function () {
+            if (cb) {
+                var newValue = effect.run();
+                if (deep || !Object.is(newValue, oldValue)) {
+                    cb(newValue, oldValue);
+                    oldValue = newValue;
+                }
+            }
+        };
+        var scheduler = function () { return queuePreFlushCb(job); };
+        var effect = new ReactiveEffect(getter, scheduler);
+        if (cb) {
+            if (immediate) {
+                job();
+            }
+            else {
+                oldValue = effect.run();
+            }
+        }
+        else {
+            effect.run();
+        }
+        return function () {
+            effect.stop();
+        };
+    }
+    function traverse(value) {
+        if (typeof value !== 'object')
+            return value;
+        for (var key in value) {
+            traverse(value[key]);
+        }
+        return value;
+    }
+
     exports.computed = computed;
     exports.effect = effect;
     exports.queuePreFlushCb = queuePreFlushCb;
     exports.reactive = reactive;
     exports.ref = ref;
+    exports.watch = watch;
 
     Object.defineProperty(exports, '__esModule', { value: true });
 
