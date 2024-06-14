@@ -379,8 +379,92 @@ var Vue = (function (exports) {
         return value;
     }
 
+    var Fragment = Symbol('Fragment');
+    var Text = Symbol('Text');
+    var Component = Symbol('Component');
+    function isVNode(value) {
+        return value ? value.__v_isVNode : false;
+    }
+    function createVNode(type, props, children) {
+        var shapeFlag = typeof type === 'string' ? 1 /* ShapeFlags.ELEMENT */ : typeof type === 'object' ? 4 /* ShapeFlags.STATEFUL_COMPONENT */ : 0;
+        return createBaseVNode(type, props, children, shapeFlag);
+    }
+    function createBaseVNode(type, props, children, shapeFlag) {
+        var vnode = {
+            __v_isVNode: true,
+            type: type,
+            props: props,
+            children: children,
+            shapeFlag: shapeFlag
+        };
+        normalizeChildren(vnode, children);
+        return vnode;
+    }
+    function normalizeChildren(vnode, children) {
+        var type = 0;
+        vnode.shapeFlag;
+        if (children == null) {
+            children = null;
+        }
+        else if (Array.isArray(children)) {
+            type = 16 /* ShapeFlags.ARRAY_CHILDREN */;
+        }
+        else if (typeof children === 'object') ;
+        else if (typeof children === 'function') ;
+        else {
+            children = String(children);
+            type = 8 /* ShapeFlags.TEXT_CHILDREN */;
+        }
+        vnode.children = children;
+        vnode.shapeFlag |= type; // 相当于vnode.shapeFlag = vnode.shapeFlag | type
+    }
+
+    // 只有type
+    // h('div')
+    // type + props
+    // h('div', {})
+    // type + 省略props + children
+    // h('div', [])
+    // h('div', 'foo')
+    // h('div', h('br'))
+    // h(Component, () => {})
+    // type + props + children
+    // h('div', {}, [])
+    // h('div', {}, h('br'))
+    // h('div', {}, 'foo')
+    // h(Component, {}, ()=>{})
+    // h(Component, {}, {})
+    // h(Component, null, {})
+    function h(type, propsOrChildren, children) {
+        var l = arguments.length;
+        if (l === 2) {
+            if (typeof propsOrChildren === 'object' && !Array.isArray(propsOrChildren)) {
+                if (isVNode(propsOrChildren)) {
+                    return createVNode(type, null, [propsOrChildren]);
+                }
+                return createVNode(type, propsOrChildren);
+            }
+            else {
+                return createVNode(type, null, propsOrChildren);
+            }
+        }
+        else {
+            if (l > 3) {
+                children = Array.prototype.slice.call(arguments, 2);
+            }
+            else if (l === 3 && isVNode(children)) {
+                children = [children];
+            }
+            return createVNode(type, propsOrChildren, children);
+        }
+    }
+
+    exports.Component = Component;
+    exports.Fragment = Fragment;
+    exports.Text = Text;
     exports.computed = computed;
     exports.effect = effect;
+    exports.h = h;
     exports.queuePreFlushCb = queuePreFlushCb;
     exports.reactive = reactive;
     exports.ref = ref;
