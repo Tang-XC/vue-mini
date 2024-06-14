@@ -17,11 +17,11 @@ function doWatch(source,cb:Function,{immediate,deep}:WatchOptions = {}){
   } else {
     getter = ()=>{}
   }
-
   if(cb && deep){
     const baseGetter = getter
     getter = ()=>traverse(baseGetter())
   }
+  
 
   let oldValue = {}
   const job = ()=>{
@@ -49,7 +49,7 @@ function doWatch(source,cb:Function,{immediate,deep}:WatchOptions = {}){
     effect.stop()
   }
 }
-
+// 递归遍历,用于触发依赖收集
 export function traverse(value:unknown){
   if(typeof value !== 'object') return value
   for(const key in value as object){

@@ -369,6 +369,7 @@ var Vue = (function (exports) {
             effect.stop();
         };
     }
+    // 递归遍历,用于触发依赖收集
     function traverse(value) {
         if (typeof value !== 'object')
             return value;

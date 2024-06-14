@@ -14,14 +14,14 @@
       name:'张阿三'
     })
     watch(obj,(newValue,oldValue)=>{
-      // console.log(newValue)
-      // console.log('被触发')
+      // console.log("newValue",newValue)
+      // console.log("oldValue",oldValue)
     },{
       immediate:true
     })
-    setTimeout(()=>{
+    /* setTimeout(()=>{
       obj.name = '李四'
-    },2000)
+    },2000) */
   </script>  
 </body>
 </html>
