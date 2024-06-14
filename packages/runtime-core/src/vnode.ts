@@ -14,7 +14,15 @@ export function isVNode(value:any):value is VNode {
   return value ? value.__v_isVNode : false
 }
 export function createVNode(type:any,props:any,children?:any):VNode{
+  if(props){
+    let {class:klass,style} = props
+    if(klass && typeof klass !== 'string'){
+      props.class = normalizeClass(klass)
+    }
+  }
+
   const shapeFlag = typeof type === 'string' ? ShapeFlags.ELEMENT : typeof type === 'object' ? ShapeFlags.STATEFUL_COMPONENT : 0
+
   return createBaseVNode(type,props,children,shapeFlag)
 }
 function createBaseVNode(type,props,children,shapeFlag){
@@ -45,4 +53,24 @@ function normalizeChildren(vnode:VNode,children:unknown){
   }
   vnode.children = children
   vnode.shapeFlag |= type // 相当于vnode.shapeFlag = vnode.shapeFlag | type
+}
+function normalizeClass(value:unknown):string{
+  let res = ''
+  if(typeof value === 'string'){
+    res = value
+  } else if (Array.isArray(value)){
+    for(let i = 0;i < value.length;i++){
+      const normalized = normalizeClass(value[i])
+      if(normalized){
+        res += normalized + ' '
+      }
+    }
+  } else if (typeof value === 'object') {
+    for(const key in value){
+      if(value[key]){
+        res += key + ' '
+      }
+    }
+  }
+  return res.trim()
 }
