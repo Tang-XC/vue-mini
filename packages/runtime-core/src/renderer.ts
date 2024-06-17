@@ -138,6 +138,9 @@ function baseCreateRenderer(opitons:RendererOptions):any{
   }
   const render = (vnode,container)=>{
     if(vnode === null){
+      if(container._vnode){
+        unmountElement(container._vnode)
+      }
     } else {
       patch(container._vnode || null,vnode,container)
     }

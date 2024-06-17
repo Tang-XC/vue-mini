@@ -7,19 +7,16 @@
   <script src="../../dist/vue.js"></script>
 </head>
 <body>
+  <div id="app">
+  </div>
   <script>
     const {render,h} =Vue
-    const vnode = h('div',{
+    const el = document.querySelector('#app')
+    const vnode = h('input',{
       class:"text",
+      value:'go home'
     },"Hello world")
-    const vnode2 = h('h1',{
-      class:'active',
-    },"Hello There")
-    render(vnode,document.body)
-    setTimeout(()=>{
-      console.log("Hello")
-      render(vnode2,document.body)
-    },2000)
+    render(vnode,el)
   </script>
 </body>
 </html>

@@ -597,7 +597,11 @@ var Vue = (function (exports) {
             }
         };
         var render = function (vnode, container) {
-            if (vnode === null) ;
+            if (vnode === null) {
+                if (container._vnode) {
+                    unmountElement(container._vnode);
+                }
+            }
             else {
                 patch(container._vnode || null, vnode, container);
             }
@@ -617,6 +621,22 @@ var Vue = (function (exports) {
         }
     }
 
+    function patchDOMProp(el, key, value) {
+        try {
+            el[key] = value;
+        }
+        catch (e) { }
+    }
+
+    function patchAttr(el, key, value) {
+        if (value === null) {
+            el.removeAttribute(key);
+        }
+        else {
+            el.setAttribute(key, value);
+        }
+    }
+
     var patchProp = function (el, key, prevValue, nextValue) {
         var onRE = /^on[^a-z]/;
         if (key === 'class') {
@@ -624,8 +644,23 @@ var Vue = (function (exports) {
         }
         else if (key === 'style') ;
         else if (onRE.test(key)) ;
-        else ;
+        else if (shouldSetAsProp(el, key)) {
+            patchDOMProp(el, key, nextValue);
+        }
+        else {
+            patchAttr(el, key, nextValue);
+        }
     };
+    function shouldSetAsProp(el, key) {
+        console.log(key);
+        if (key === 'form')
+            return false;
+        if (key === 'list' && el.tagName === 'INPUT')
+            return false;
+        if (key === 'type' && el.tagName === 'TEXTAREA')
+            return false;
+        return key in el;
+    }
 
     var doc = document;
     var nodeOps = {
