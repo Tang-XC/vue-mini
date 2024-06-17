@@ -386,6 +386,12 @@ var Vue = (function (exports) {
         return value ? value.__v_isVNode : false;
     }
     function createVNode(type, props, children) {
+        if (props) {
+            var klass = props.class; props.style;
+            if (klass && typeof klass !== 'string') {
+                props.class = normalizeClass(klass);
+            }
+        }
         var shapeFlag = typeof type === 'string' ? 1 /* ShapeFlags.ELEMENT */ : typeof type === 'object' ? 4 /* ShapeFlags.STATEFUL_COMPONENT */ : 0;
         return createBaseVNode(type, props, children, shapeFlag);
     }
@@ -417,6 +423,28 @@ var Vue = (function (exports) {
         }
         vnode.children = children;
         vnode.shapeFlag |= type; // 相当于vnode.shapeFlag = vnode.shapeFlag | type
+    }
+    function normalizeClass(value) {
+        var res = '';
+        if (typeof value === 'string') {
+            res = value;
+        }
+        else if (Array.isArray(value)) {
+            for (var i = 0; i < value.length; i++) {
+                var normalized = normalizeClass(value[i]);
+                if (normalized) {
+                    res += normalized + ' ';
+                }
+            }
+        }
+        else if (typeof value === 'object') {
+            for (var key in value) {
+                if (value[key]) {
+                    res += key + ' ';
+                }
+            }
+        }
+        return res.trim();
     }
 
     // 只有type
@@ -459,6 +487,113 @@ var Vue = (function (exports) {
         }
     }
 
+    // 创建renderer
+    function createRenderer(options) {
+        return baseCreateRenderer(options);
+    }
+    function baseCreateRenderer(opitons) {
+        var hostInsert = opitons.insert, hostSetElementText = opitons.setElementText, hostCreateElement = opitons.createElement, hostPatchProp = opitons.patchProp;
+        // 处理element
+        var processElement = function (oldVnode, newVnode, container, anchor) {
+            if (oldVnode == null) {
+                // 挂载element
+                mountElement(newVnode, container, anchor);
+            }
+        };
+        var mountElement = function (vnode, container, anchor) {
+            var type = vnode.type, props = vnode.props, shapeFlag = vnode.shapeFlag;
+            // 创建element
+            var el = (vnode.el = hostCreateElement(type));
+            if (shapeFlag & 8 /* ShapeFlags.TEXT_CHILDREN */) {
+                // 设置文本
+                hostSetElementText(el, vnode.children);
+            }
+            // 设置props
+            if (props) {
+                for (var key in props) {
+                    hostPatchProp(el, key, null, props[key]);
+                }
+            }
+            // 插入
+            hostInsert(el, container, anchor);
+        };
+        var patch = function (oldVnode, newVnode, container, anchor) {
+            if (anchor === void 0) { anchor = null; }
+            if (oldVnode === newVnode)
+                return;
+            var type = newVnode.type, shapeFlag = newVnode.shapeFlag;
+            switch (type) {
+                case Text:
+                    break;
+                case Component:
+                    break;
+                case Fragment:
+                    break;
+                default:
+                    if (shapeFlag & 1 /* ShapeFlags.ELEMENT */) {
+                        processElement(oldVnode, newVnode, container, anchor);
+                    }
+            }
+        };
+        var render = function (vnode, container) {
+            if (vnode === null) ;
+            else {
+                patch(container._vnode || null, vnode, container);
+            }
+            container._vnode = vnode;
+        };
+        return {
+            render: render
+        };
+    }
+
+    function patchClass(el, value) {
+        if (value === null) {
+            el.removeAttribute('class');
+        }
+        else {
+            el.className = value;
+        }
+    }
+
+    var patchProp = function (el, key, prevValue, nextValue) {
+        var onRE = /^on[^a-z]/;
+        if (key === 'class') {
+            patchClass(el, nextValue);
+        }
+        else if (key === 'style') ;
+        else if (onRE.test(key)) ;
+        else ;
+    };
+
+    var doc = document;
+    var nodeOps = {
+        insert: function (child, parent, anchor) {
+            parent.insertBefore(child, anchor || null);
+        },
+        createElement: function (tag) {
+            var el = doc.createElement(tag);
+            return el;
+        },
+        setElementText: function (el, text) {
+            el.textContent = text;
+        }
+    };
+
+    var rendererOptions = Object.assign({ patchProp: patchProp }, nodeOps);
+    var renderer;
+    function ensureRenderer() {
+        return renderer || (renderer = createRenderer(rendererOptions));
+    }
+    var render = function () {
+        var _a;
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i] = arguments[_i];
+        }
+        (_a = ensureRenderer()).render.apply(_a, __spreadArray([], __read(args), false));
+    };
+
     exports.Component = Component;
     exports.Fragment = Fragment;
     exports.Text = Text;
@@ -468,6 +603,7 @@ var Vue = (function (exports) {
     exports.queuePreFlushCb = queuePreFlushCb;
     exports.reactive = reactive;
     exports.ref = ref;
+    exports.render = render;
     exports.watch = watch;
 
     Object.defineProperty(exports, '__esModule', { value: true });
