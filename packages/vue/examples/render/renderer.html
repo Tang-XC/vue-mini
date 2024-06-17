@@ -12,11 +12,20 @@
   <script>
     const {render,h} =Vue
     const el = document.querySelector('#app')
-    const vnode = h('input',{
-      class:"text",
-      value:'go home'
-    },"Hello world")
-    render(vnode,el)
+    const n1 = h('div',{
+      style:{
+        color:'red'
+      }
+    },'Hello world')
+    const n2 = h('div',{
+      style:{
+        color:'blue'
+      }
+    },'Hello world')
+    render(n1,el)
+    setTimeout(()=>{
+      render(n2,el)
+    },1000)
   </script>
 </body>
 </html>

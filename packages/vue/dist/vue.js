@@ -621,6 +621,26 @@ var Vue = (function (exports) {
         }
     }
 
+    function patchStyle(el, prev, next) {
+        var style = el.style;
+        var isCssString = typeof next === 'string';
+        if (next && !isCssString) {
+            for (var key in next) {
+                setStyle(style, key, next[key]);
+            }
+        }
+        if (prev && !(typeof prev === 'string')) {
+            for (var key in prev) {
+                if (next[key] == null) {
+                    setStyle(style, key, '');
+                }
+            }
+        }
+    }
+    function setStyle(style, name, val) {
+        style[name] = val;
+    }
+
     function patchDOMProp(el, key, value) {
         try {
             el[key] = value;
@@ -642,7 +662,9 @@ var Vue = (function (exports) {
         if (key === 'class') {
             patchClass(el, nextValue);
         }
-        else if (key === 'style') ;
+        else if (key === 'style') {
+            patchStyle(el, prevValue, nextValue);
+        }
         else if (onRE.test(key)) ;
         else if (shouldSetAsProp(el, key)) {
             patchDOMProp(el, key, nextValue);

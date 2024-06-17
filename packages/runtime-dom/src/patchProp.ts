@@ -1,4 +1,5 @@
 import {patchClass} from './modules/class'
+import {patchStyle} from './modules/style'
 import { patchDOMProp } from './modules/props'
 import {patchAttr} from './modules/attrs'
 export const patchProp = (el:Element,key,prevValue,nextValue:string | null)=>{
@@ -6,7 +7,7 @@ export const patchProp = (el:Element,key,prevValue,nextValue:string | null)=>{
   if(key === 'class'){
     patchClass(el,nextValue)
   } else if(key === 'style'){
-
+    patchStyle(el,prevValue,nextValue)
   } else if(onRE.test(key)){
 
   } else if(shouldSetAsProp(el,key)){
