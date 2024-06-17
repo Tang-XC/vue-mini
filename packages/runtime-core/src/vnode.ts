@@ -6,6 +6,7 @@ export interface VNode {
   props:any
   children:any
   shapeFlag:number
+  key?:string | number
 }
 export const Fragment = Symbol('Fragment')
 export const Text = Symbol('Text')
@@ -73,4 +74,8 @@ function normalizeClass(value:unknown):string{
     }
   }
   return res.trim()
+}
+
+export function isSameVnodeType(n1:VNode,n2:VNode){
+  return n1.type === n2.type && n1.key === n2.key
 }

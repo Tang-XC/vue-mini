@@ -446,6 +446,9 @@ var Vue = (function (exports) {
         }
         return res.trim();
     }
+    function isSameVnodeType(n1, n2) {
+        return n1.type === n2.type && n1.key === n2.key;
+    }
 
     // 只有type
     // h('div')
@@ -492,12 +495,46 @@ var Vue = (function (exports) {
         return baseCreateRenderer(options);
     }
     function baseCreateRenderer(opitons) {
-        var hostInsert = opitons.insert, hostSetElementText = opitons.setElementText, hostCreateElement = opitons.createElement, hostPatchProp = opitons.patchProp;
-        // 处理element
-        var processElement = function (oldVnode, newVnode, container, anchor) {
-            if (oldVnode == null) {
-                // 挂载element
-                mountElement(newVnode, container, anchor);
+        var hostInsert = opitons.insert, hostSetElementText = opitons.setElementText, hostCreateElement = opitons.createElement, hostPatchProp = opitons.patchProp, hostRemove = opitons.remove;
+        var patchChildren = function (oldVnode, newVnode, container, anchor) {
+            var c1 = oldVnode && oldVnode.children;
+            var c2 = newVnode && newVnode.children;
+            var prevShapeFlag = oldVnode ? oldVnode.shapeFlag : 0;
+            var shapeFlag = newVnode.shapeFlag;
+            if (shapeFlag & 8 /* ShapeFlags.TEXT_CHILDREN */) {
+                // 如果新旧不相同则设置新节点的text
+                if (c2 !== c1) {
+                    hostSetElementText(container, c2);
+                }
+            }
+            else {
+                // 当新节点不是文本节点时，而旧节点是数组节点时
+                if (prevShapeFlag & 16 /* ShapeFlags.ARRAY_CHILDREN */) ;
+                else {
+                    // 当旧节点不是数组节点时,而旧节点时文本节点时
+                    if (prevShapeFlag & 8 /* ShapeFlags.TEXT_CHILDREN */) {
+                        // 删除旧节点的text
+                        hostSetElementText(container, '');
+                    }
+                }
+            }
+        };
+        var patchProps = function (el, vnode, oldProps, newProps) {
+            if (oldProps !== newProps) {
+                for (var key in newProps) {
+                    var next = newProps[key];
+                    var prev = oldProps[key];
+                    if (next !== prev) {
+                        hostPatchProp(el, key, prev, next);
+                    }
+                }
+                if (oldProps && Object.keys(oldProps).length !== 0) {
+                    for (var key in oldProps) {
+                        if (!(key in newProps)) {
+                            hostPatchProp(el, key, oldProps[key], null);
+                        }
+                    }
+                }
             }
         };
         var mountElement = function (vnode, container, anchor) {
@@ -508,7 +545,7 @@ var Vue = (function (exports) {
                 // 设置文本
                 hostSetElementText(el, vnode.children);
             }
-            // 设置props
+            // 设置props 
             if (props) {
                 for (var key in props) {
                     hostPatchProp(el, key, null, props[key]);
@@ -517,10 +554,34 @@ var Vue = (function (exports) {
             // 插入
             hostInsert(el, container, anchor);
         };
+        var patchElement = function (oldVnode, newVnode) {
+            var el = (newVnode.el = oldVnode.el);
+            var oldProps = oldVnode.props || {};
+            var newProps = newVnode.props || {};
+            patchChildren(oldVnode, newVnode, el);
+            patchProps(el, newVnode, oldProps, newProps);
+        };
+        var unmountElement = function (vnode) {
+            hostRemove(vnode.el);
+        };
+        var processElement = function (oldVnode, newVnode, container, anchor) {
+            if (oldVnode == null) {
+                // 挂载element
+                mountElement(newVnode, container, anchor);
+            }
+            else {
+                // 更新element
+                patchElement(oldVnode, newVnode);
+            }
+        };
         var patch = function (oldVnode, newVnode, container, anchor) {
             if (anchor === void 0) { anchor = null; }
             if (oldVnode === newVnode)
                 return;
+            if (oldVnode && !isSameVnodeType(oldVnode, newVnode)) {
+                unmountElement(oldVnode);
+                oldVnode = null;
+            }
             var type = newVnode.type, shapeFlag = newVnode.shapeFlag;
             switch (type) {
                 case Text:
@@ -577,6 +638,12 @@ var Vue = (function (exports) {
         },
         setElementText: function (el, text) {
             el.textContent = text;
+        },
+        remove: function (el) {
+            var parent = el.parentNode;
+            if (parent) {
+                parent.removeChild(el);
+            }
         }
     };
 

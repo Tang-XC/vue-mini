@@ -12,7 +12,14 @@
     const vnode = h('div',{
       class:"text",
     },"Hello world")
+    const vnode2 = h('h1',{
+      class:'active',
+    },"Hello There")
     render(vnode,document.body)
+    setTimeout(()=>{
+      console.log("Hello")
+      render(vnode2,document.body)
+    },2000)
   </script>
 </body>
 </html>
