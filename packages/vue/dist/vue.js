@@ -490,12 +490,24 @@ var Vue = (function (exports) {
         }
     }
 
+    function normalizeVnode(child) {
+        if (typeof child === 'object') {
+            return cloneIfMounted(child);
+        }
+        else {
+            return createVNode(Text, null, String(child));
+        }
+    }
+    function cloneIfMounted(child) {
+        return child;
+    }
+
     // 创建renderer
     function createRenderer(options) {
         return baseCreateRenderer(options);
     }
     function baseCreateRenderer(opitons) {
-        var hostInsert = opitons.insert, hostSetElementText = opitons.setElementText, hostCreateElement = opitons.createElement, hostPatchProp = opitons.patchProp, hostRemove = opitons.remove;
+        var hostInsert = opitons.insert, hostSetElementText = opitons.setElementText, hostCreateElement = opitons.createElement, hostPatchProp = opitons.patchProp, hostRemove = opitons.remove, hostCreateText = opitons.createText, hostSetText = opitons.setText;
         var patchChildren = function (oldVnode, newVnode, container, anchor) {
             var c1 = oldVnode && oldVnode.children;
             var c2 = newVnode && newVnode.children;
@@ -528,6 +540,7 @@ var Vue = (function (exports) {
                         hostPatchProp(el, key, prev, next);
                     }
                 }
+                // 清空旧节点的props
                 if (oldProps && Object.keys(oldProps).length !== 0) {
                     for (var key in oldProps) {
                         if (!(key in newProps)) {
@@ -554,6 +567,15 @@ var Vue = (function (exports) {
             // 插入
             hostInsert(el, container, anchor);
         };
+        var mountChildren = function (children, container, anchor) {
+            if (typeof children === 'string') {
+                children = children.split('');
+            }
+            for (var i = 0; i < children.length; i++) {
+                var child = (children[i] = normalizeVnode(children[i]));
+                patch(null, child, container, anchor);
+            }
+        };
         var patchElement = function (oldVnode, newVnode) {
             var el = (newVnode.el = oldVnode.el);
             var oldProps = oldVnode.props || {};
@@ -574,10 +596,31 @@ var Vue = (function (exports) {
                 patchElement(oldVnode, newVnode);
             }
         };
+        var processText = function (oldVnode, newVnode, container, anchor) {
+            if (oldVnode == null) {
+                newVnode.el = hostCreateText(newVnode.children);
+                hostInsert(newVnode.el, container, anchor);
+            }
+            else {
+                var el = (newVnode.el = oldVnode.el);
+                if (newVnode.children !== oldVnode.children) {
+                    hostSetText(el, newVnode.children);
+                }
+            }
+        };
+        var processFragment = function (oldVnode, newVnode, container, anchor) {
+            if (oldVnode == null) {
+                mountChildren(newVnode.children, container, anchor);
+            }
+            else {
+                patchChildren(oldVnode, newVnode, container);
+            }
+        };
         var patch = function (oldVnode, newVnode, container, anchor) {
             if (anchor === void 0) { anchor = null; }
             if (oldVnode === newVnode)
                 return;
+            // 如果节点类型不同，则卸载旧节点，用来更新新节点
             if (oldVnode && !isSameVnodeType(oldVnode, newVnode)) {
                 unmountElement(oldVnode);
                 oldVnode = null;
@@ -585,10 +628,12 @@ var Vue = (function (exports) {
             var type = newVnode.type, shapeFlag = newVnode.shapeFlag;
             switch (type) {
                 case Text:
+                    processText(oldVnode, newVnode, container, anchor);
                     break;
                 case Component:
                     break;
                 case Fragment:
+                    processFragment(oldVnode, newVnode, container, anchor);
                     break;
                 default:
                     if (shapeFlag & 1 /* ShapeFlags.ELEMENT */) {
@@ -597,7 +642,9 @@ var Vue = (function (exports) {
             }
         };
         var render = function (vnode, container) {
+            // 传入元素为null，则卸载元素
             if (vnode === null) {
+                // 判定旧节点是否存在，存在则卸载
                 if (container._vnode) {
                     unmountElement(container._vnode);
                 }
@@ -605,6 +652,7 @@ var Vue = (function (exports) {
             else {
                 patch(container._vnode || null, vnode, container);
             }
+            // 缓存vnode，作为旧节点
             container._vnode = vnode;
         };
         return {
@@ -657,24 +705,61 @@ var Vue = (function (exports) {
         }
     }
 
+    function patchEvent(el, rawName, prevValue, nextValue) {
+        var invokers = el._vei || (el._vei = {});
+        var existingInvoker = invokers[rawName];
+        if (nextValue && existingInvoker) {
+            existingInvoker.value = nextValue;
+        }
+        else {
+            var name_1 = parseName(rawName);
+            if (nextValue) {
+                var invoker = (invokers[rawName] = createInvoker(nextValue));
+                el.addEventListener(name_1, invoker);
+            }
+            else if (existingInvoker) {
+                el.removeEventListener(name_1, existingInvoker);
+                invokers[rawName] = undefined;
+            }
+        }
+    }
+    function parseName(name) {
+        return name.slice(2).toLowerCase();
+    }
+    function createInvoker(initialValue) {
+        var invoker = function (e) {
+            invoker.value && invoker.value();
+        };
+        invoker.value = initialValue;
+        return invoker;
+    }
+
     var patchProp = function (el, key, prevValue, nextValue) {
         var onRE = /^on[^a-z]/;
         if (key === 'class') {
+            // 挂载class
             patchClass(el, nextValue);
         }
         else if (key === 'style') {
+            // 挂载style
             patchStyle(el, prevValue, nextValue);
         }
-        else if (onRE.test(key)) ;
+        else if (onRE.test(key)) {
+            // 挂载事件
+            patchEvent(el, key, prevValue, nextValue);
+        }
         else if (shouldSetAsProp(el, key)) {
+            // 挂载DOM属性，例如input的value
             patchDOMProp(el, key, nextValue);
         }
         else {
+            // 挂载元素html属性
             patchAttr(el, key, nextValue);
         }
     };
+    // js中,设置元素属性时，需要分别设置两种属性，一种是DOM属性，另一种是html属性
+    // 判断是否是DOM属性
     function shouldSetAsProp(el, key) {
-        console.log(key);
         if (key === 'form')
             return false;
         if (key === 'list' && el.tagName === 'INPUT')
@@ -701,6 +786,12 @@ var Vue = (function (exports) {
             if (parent) {
                 parent.removeChild(el);
             }
+        },
+        createText: function (text) {
+            return doc.createTextNode(text);
+        },
+        setText: function (node, text) {
+            node.nodeValue = text;
         }
     };
 

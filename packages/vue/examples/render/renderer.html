@@ -10,22 +10,10 @@
   <div id="app">
   </div>
   <script>
-    const {render,h} =Vue
+    const {render,h,Text,Fragment} =Vue
     const el = document.querySelector('#app')
-    const n1 = h('div',{
-      style:{
-        color:'red'
-      }
-    },'Hello world')
-    const n2 = h('div',{
-      style:{
-        color:'blue'
-      }
-    },'Hello world')
-    render(n1,el)
-    setTimeout(()=>{
-      render(n2,el)
-    },1000)
+    const node = h(Fragment,'Hello world')
+    render(node,el)
   </script>
 </body>
 </html>

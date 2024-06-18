@@ -15,5 +15,12 @@ export const nodeOps={
     if(parent){
       parent.removeChild(el)
     }
-  }
+  },
+  
+  createText:(text:string)=>{
+    return doc.createTextNode(text)
+  },
+  setText:(node,text)=>{
+    node.nodeValue = text
+  } 
 }

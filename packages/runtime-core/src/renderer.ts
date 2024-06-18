@@ -1,5 +1,6 @@
 import { ShapeFlags } from "@vue/shared"
 import { Text,Fragment,Component,isSameVnodeType } from "./vnode"
+import {normalizeVnode} from './componentRenderUtils'
 
 export interface RendererOptions {
   patchProp(el:Element,key:string,prevValue:any,nextValue:any):void
@@ -7,19 +8,24 @@ export interface RendererOptions {
   insert(el:Element,parent:Element,anchor?:any):void
   createElement(type:string):Element
   remove(el:Element):void
+  createText(text:string):any
+  setText(el:Element,text:string):void
 }
 
 // 创建renderer
 export function createRenderer(options:RendererOptions){
   return baseCreateRenderer(options)
 }
+
 function baseCreateRenderer(opitons:RendererOptions):any{
   const {
     insert:hostInsert,
     setElementText:hostSetElementText,
     createElement:hostCreateElement,
     patchProp:hostPatchProp,
-    remove:hostRemove
+    remove:hostRemove,
+    createText:hostCreateText,
+    setText:hostSetText
   } = opitons
   const patchChildren = (oldVnode,newVnode,container,anchor)=>{
     const c1 = oldVnode && oldVnode.children
@@ -66,6 +72,7 @@ function baseCreateRenderer(opitons:RendererOptions):any{
           hostPatchProp(el,key,prev,next)
         }
       }
+      // 清空旧节点的props
       if(oldProps && Object.keys(oldProps).length !== 0){
         for(const key in oldProps){
           if(!(key in newProps)){
@@ -94,6 +101,15 @@ function baseCreateRenderer(opitons:RendererOptions):any{
     // 插入
     hostInsert(el,container,anchor)
   }
+  const mountChildren = (children,container,anchor)=>{
+    if(typeof children === 'string'){
+      children = children.split('')
+    }
+    for(let i = 0;i < children.length;i++){
+      const child = (children[i] = normalizeVnode(children[i]))
+      patch(null,child,container,anchor)
+    }
+  }
   
   const patchElement = (oldVnode,newVnode)=>{
     const el = (newVnode.el = oldVnode.el)
@@ -114,8 +130,29 @@ function baseCreateRenderer(opitons:RendererOptions):any{
       patchElement(oldVnode,newVnode)
     }
   }
+  const processText = (oldVnode,newVnode,container,anchor)=>{
+    if(oldVnode == null){
+      newVnode.el = hostCreateText(newVnode.children)
+      hostInsert(newVnode.el,container,anchor)
+    } else {
+      const el = (newVnode.el = oldVnode.el!)
+      if(newVnode.children !== oldVnode.children) {
+        hostSetText(el,newVnode.children)
+      } 
+    }
+
+  }
+  
+  const processFragment = (oldVnode,newVnode,container,anchor)=>{
+    if(oldVnode == null){
+      mountChildren(newVnode.children,container,anchor)
+    } else {
+      patchChildren(oldVnode,newVnode,container,anchor)
+    }
+  }
   const patch = (oldVnode,newVnode,container,anchor=null)=>{
     if(oldVnode === newVnode) return
+    // 如果节点类型不同，则卸载旧节点，用来更新新节点
     if(oldVnode && !isSameVnodeType(oldVnode,newVnode)){
       unmountElement(oldVnode)
       oldVnode = null;
@@ -123,10 +160,12 @@ function baseCreateRenderer(opitons:RendererOptions):any{
     const {type,shapeFlag} = newVnode
     switch(type){
       case Text:
+        processText(oldVnode,newVnode,container,anchor)
         break;
       case Component:
         break; 
       case Fragment:
+        processFragment(oldVnode,newVnode,container,anchor)
         break;
       default:
         if(shapeFlag & ShapeFlags.ELEMENT){
@@ -137,13 +176,17 @@ function baseCreateRenderer(opitons:RendererOptions):any{
     }
   }
   const render = (vnode,container)=>{
+    // 传入元素为null，则卸载元素
     if(vnode === null){
+      // 判定旧节点是否存在，存在则卸载
       if(container._vnode){
         unmountElement(container._vnode)
       }
     } else {
+
       patch(container._vnode || null,vnode,container)
     }
+    // 缓存vnode，作为旧节点
     container._vnode = vnode
   }
   return {
