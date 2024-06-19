@@ -501,6 +501,44 @@ var Vue = (function (exports) {
     function cloneIfMounted(child) {
         return child;
     }
+    function renderComponentRoot(instance) {
+        var vnode = instance.vnode, render = instance.render;
+        var result;
+        try {
+            if (vnode.shapeFlag & 4 /* ShapeFlags.STATEFUL_COMPONENT */) {
+                result = normalizeVnode(render());
+            }
+        }
+        catch (error) {
+            console.error(error);
+        }
+        return result;
+    }
+
+    var uid = 0;
+    function createComponentInstance(vnode) {
+        var instance = {
+            uid: uid++,
+            vnode: vnode,
+            type: vnode.type,
+            subTree: null,
+            effect: null,
+            update: null,
+            render: null
+        };
+        return instance;
+    }
+    function setupComponent(instance) {
+        setupStatefulComponent(instance);
+    }
+    // 设置组件的初始状态
+    function setupStatefulComponent(instance) {
+        finishComponentSetup(instance);
+    }
+    function finishComponentSetup(instance) {
+        var Component = instance.type;
+        instance.render = Component.render;
+    }
 
     // 创建renderer
     function createRenderer(options) {
@@ -550,6 +588,18 @@ var Vue = (function (exports) {
                 }
             }
         };
+        var setupRenderEffect = function (instance, initialVnode, container, anchor) {
+            var componentUpdateFn = function () {
+                if (!instance.isMounted) {
+                    var subTree = (instance.subTree = renderComponentRoot(instance));
+                    patch(null, subTree, container, anchor);
+                    initialVnode.el = subTree.el;
+                }
+            };
+            var update = (instance.update = function () { return effect.run(); });
+            var effect = (instance.efect = new ReactiveEffect(componentUpdateFn, function () { return queuePreFlushCb(update); }));
+            update();
+        };
         var mountElement = function (vnode, container, anchor) {
             var type = vnode.type, props = vnode.props, shapeFlag = vnode.shapeFlag;
             // 创建element
@@ -575,6 +625,14 @@ var Vue = (function (exports) {
                 var child = (children[i] = normalizeVnode(children[i]));
                 patch(null, child, container, anchor);
             }
+        };
+        var mountComponent = function (initialVnode, container, anchor) {
+            console.log(initialVnode);
+            initialVnode.component = createComponentInstance(initialVnode);
+            var instance = initialVnode.component;
+            setupComponent(instance);
+            console.log(instance);
+            setupRenderEffect(instance, initialVnode, container, anchor);
         };
         var patchElement = function (oldVnode, newVnode) {
             var el = (newVnode.el = oldVnode.el);
@@ -616,6 +674,12 @@ var Vue = (function (exports) {
                 patchChildren(oldVnode, newVnode, container);
             }
         };
+        var processComponent = function (oldVnode, newVnode, container, anchor) {
+            if (oldVnode == null) {
+                // 挂载组件
+                mountComponent(newVnode, container, anchor);
+            }
+        };
         var patch = function (oldVnode, newVnode, container, anchor) {
             if (anchor === void 0) { anchor = null; }
             if (oldVnode === newVnode)
@@ -638,6 +702,9 @@ var Vue = (function (exports) {
                 default:
                     if (shapeFlag & 1 /* ShapeFlags.ELEMENT */) {
                         processElement(oldVnode, newVnode, container, anchor);
+                    }
+                    else if (shapeFlag & 6 /* ShapeFlags.COMPONENT */) {
+                        processComponent(oldVnode, newVnode, container, anchor);
                     }
             }
         };

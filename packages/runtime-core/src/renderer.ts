@@ -1,6 +1,9 @@
 import { ShapeFlags } from "@vue/shared"
 import { Text,Fragment,Component,isSameVnodeType } from "./vnode"
-import {normalizeVnode} from './componentRenderUtils'
+import {normalizeVnode,renderComponentRoot} from './componentRenderUtils'
+import {createComponentInstance,setupComponent} from './component'
+import {ReactiveEffect} from 'packages/reactivity/src/effect'
+import {queuePreFlushCb} from 'packages/runtime-core/src/scheduler'
 
 export interface RendererOptions {
   patchProp(el:Element,key:string,prevValue:any,nextValue:any):void
@@ -82,6 +85,20 @@ function baseCreateRenderer(opitons:RendererOptions):any{
       }
     }
   }
+  const setupRenderEffect = (instance,initialVnode,container,anchor)=>{
+    const componentUpdateFn = ()=>{
+      if(!instance.isMounted){
+        const subTree = (instance.subTree = renderComponentRoot(instance))
+        patch(null,subTree,container,anchor)
+        initialVnode.el = subTree.el
+      } else {
+
+      }
+    }
+    const update = (instance.update = ()=> effect.run())
+    const effect = (instance.efect = new ReactiveEffect(componentUpdateFn,()=>queuePreFlushCb(update)))
+    update()
+  }
   const mountElement =(vnode,container,anchor)=>{
     const {type,props,shapeFlag} = vnode
     // 创建element
@@ -109,6 +126,13 @@ function baseCreateRenderer(opitons:RendererOptions):any{
       const child = (children[i] = normalizeVnode(children[i]))
       patch(null,child,container,anchor)
     }
+  }
+  const mountComponent = (initialVnode,container,anchor)=>{
+    console.log(initialVnode)
+    initialVnode.component = createComponentInstance(initialVnode)
+    const instance = initialVnode.component
+    setupComponent(instance)
+    setupRenderEffect(instance,initialVnode,container,anchor)
   }
   
   const patchElement = (oldVnode,newVnode)=>{
@@ -142,12 +166,19 @@ function baseCreateRenderer(opitons:RendererOptions):any{
     }
 
   }
-  
   const processFragment = (oldVnode,newVnode,container,anchor)=>{
     if(oldVnode == null){
       mountChildren(newVnode.children,container,anchor)
     } else {
       patchChildren(oldVnode,newVnode,container,anchor)
+    }
+  }
+  const processComponent = (oldVnode,newVnode,container,anchor)=>{
+    if(oldVnode == null){
+      // 挂载组件
+      mountComponent(newVnode,container,anchor)
+    } else {
+      // 更新组件
     }
   }
   const patch = (oldVnode,newVnode,container,anchor=null)=>{
@@ -171,7 +202,7 @@ function baseCreateRenderer(opitons:RendererOptions):any{
         if(shapeFlag & ShapeFlags.ELEMENT){
           processElement(oldVnode,newVnode,container,anchor)
         } else if(shapeFlag & ShapeFlags.COMPONENT){
-  
+          processComponent(oldVnode,newVnode,container,anchor)
         }
     }
   }

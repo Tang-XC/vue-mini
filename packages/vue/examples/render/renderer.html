@@ -12,8 +12,22 @@
   <script>
     const {render,h,Text,Fragment} =Vue
     const el = document.querySelector('#app')
-    const node = h(Fragment,'Hello world')
-    render(node,el)
+    const component = {
+      render(){
+        return h('div','hello component')
+      }
+    }
+    const comp = {
+      render(){
+        return h('h1','GO GO GO!')
+      }
+    }
+    const vnode = h(component)
+    const vnode2 = h(comp)
+    render(vnode,el)
+    setTimeout(()=>{
+      render(vnode2,el)
+    },2000)
   </script>
 </body>
 </html>
