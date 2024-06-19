@@ -11,11 +11,11 @@ export function cloneIfMounted(child) {
   return child
 }
 export function renderComponentRoot(instance){
-  const {vnode,render} = instance
+  const {vnode,render,data} = instance
   let result
   try{
     if(vnode.shapeFlag & ShapeFlags.STATEFUL_COMPONENT){
-      result = normalizeVnode(render!())
+      result = normalizeVnode(render!.call(data))
     }
   }catch(error){
     console.error(error)

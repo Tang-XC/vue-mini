@@ -502,11 +502,11 @@ var Vue = (function (exports) {
         return child;
     }
     function renderComponentRoot(instance) {
-        var vnode = instance.vnode, render = instance.render;
+        var vnode = instance.vnode, render = instance.render, data = instance.data;
         var result;
         try {
             if (vnode.shapeFlag & 4 /* ShapeFlags.STATEFUL_COMPONENT */) {
-                result = normalizeVnode(render());
+                result = normalizeVnode(render.call(data));
             }
         }
         catch (error) {
@@ -538,6 +538,16 @@ var Vue = (function (exports) {
     function finishComponentSetup(instance) {
         var Component = instance.type;
         instance.render = Component.render;
+        applyOptions(instance);
+    }
+    function applyOptions(instance) {
+        var dataOptions = instance.type.data;
+        if (dataOptions) {
+            var data = dataOptions();
+            if (typeof data === 'object') {
+                instance.data = reactive(data);
+            }
+        }
     }
 
     // 创建renderer
@@ -596,8 +606,8 @@ var Vue = (function (exports) {
                     initialVnode.el = subTree.el;
                 }
             };
-            var update = (instance.update = function () { return effect.run(); });
             var effect = (instance.efect = new ReactiveEffect(componentUpdateFn, function () { return queuePreFlushCb(update); }));
+            var update = (instance.update = function () { return effect.run(); });
             update();
         };
         var mountElement = function (vnode, container, anchor) {
@@ -627,11 +637,9 @@ var Vue = (function (exports) {
             }
         };
         var mountComponent = function (initialVnode, container, anchor) {
-            console.log(initialVnode);
             initialVnode.component = createComponentInstance(initialVnode);
             var instance = initialVnode.component;
             setupComponent(instance);
-            console.log(instance);
             setupRenderEffect(instance, initialVnode, container, anchor);
         };
         var patchElement = function (oldVnode, newVnode) {

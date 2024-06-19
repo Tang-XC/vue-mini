@@ -1,3 +1,5 @@
+import { reactive } from "@vue/reactivity"
+
 let uid = 0
 export function createComponentInstance(vnode){
   const instance = {
@@ -21,4 +23,14 @@ function setupStatefulComponent(instance){
 export function finishComponentSetup(instance){
   const Component = instance.type 
   instance.render = Component.render
+  applyOptions(instance)
+}
+function applyOptions(instance:any){
+  const {data:dataOptions} = instance.type
+  if(dataOptions){
+    const data = dataOptions()
+    if(typeof data === 'object'){
+      instance.data = reactive(data)
+    }
+  }
 }

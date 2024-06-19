@@ -95,8 +95,8 @@ function baseCreateRenderer(opitons:RendererOptions):any{
 
       }
     }
-    const update = (instance.update = ()=> effect.run())
     const effect = (instance.efect = new ReactiveEffect(componentUpdateFn,()=>queuePreFlushCb(update)))
+    const update = (instance.update = ()=> effect.run())
     update()
   }
   const mountElement =(vnode,container,anchor)=>{
@@ -128,13 +128,11 @@ function baseCreateRenderer(opitons:RendererOptions):any{
     }
   }
   const mountComponent = (initialVnode,container,anchor)=>{
-    console.log(initialVnode)
     initialVnode.component = createComponentInstance(initialVnode)
     const instance = initialVnode.component
     setupComponent(instance)
     setupRenderEffect(instance,initialVnode,container,anchor)
   }
-  
   const patchElement = (oldVnode,newVnode)=>{
     const el = (newVnode.el = oldVnode.el)
     const oldProps = oldVnode.props || {}

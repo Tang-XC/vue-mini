@@ -10,7 +10,7 @@
   <div id="app">
   </div>
   <script>
-    const {render,h,Text,Fragment} =Vue
+    /* const {render,h,Text,Fragment} =Vue
     const el = document.querySelector('#app')
     const component = {
       render(){
@@ -27,7 +27,18 @@
     render(vnode,el)
     setTimeout(()=>{
       render(vnode2,el)
-    },2000)
+    },2000) */
+    var name = 'windowName';
+    var a = {
+      name:'Cherry',
+      func1:function(){
+        console.log(this.name)
+      },
+      func2:function(){
+        console.log(this.name)
+      }
+    }
+    a.func2()
   </script>
 </body>
 </html>
