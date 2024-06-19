@@ -88,8 +88,21 @@ function baseCreateRenderer(opitons:RendererOptions):any{
   const setupRenderEffect = (instance,initialVnode,container,anchor)=>{
     const componentUpdateFn = ()=>{
       if(!instance.isMounted){
+        const {bm,m} = instance
+
+        // 触发beforeMount生命周期函数
+        if(bm){
+          bm()
+        }
+        
         const subTree = (instance.subTree = renderComponentRoot(instance))
         patch(null,subTree,container,anchor)
+        
+        // 触发mounted生命周期函数
+        if(m){
+          m()
+        }
+
         initialVnode.el = subTree.el
       } else {
 
@@ -143,6 +156,7 @@ function baseCreateRenderer(opitons:RendererOptions):any{
   const unmountElement = (vnode)=>{
     hostRemove(vnode.el)
   }
+  // 处理HTML普通元素节点
   const processElement = (oldVnode,newVnode,container,anchor)=>{
     if(oldVnode == null ){
       // 挂载element
@@ -152,6 +166,7 @@ function baseCreateRenderer(opitons:RendererOptions):any{
       patchElement(oldVnode,newVnode)
     }
   }
+  // 处理文本节点
   const processText = (oldVnode,newVnode,container,anchor)=>{
     if(oldVnode == null){
       newVnode.el = hostCreateText(newVnode.children)
@@ -164,6 +179,7 @@ function baseCreateRenderer(opitons:RendererOptions):any{
     }
 
   }
+  // 处理Fragment
   const processFragment = (oldVnode,newVnode,container,anchor)=>{
     if(oldVnode == null){
       mountChildren(newVnode.children,container,anchor)
@@ -171,6 +187,7 @@ function baseCreateRenderer(opitons:RendererOptions):any{
       patchChildren(oldVnode,newVnode,container,anchor)
     }
   }
+  // 处理组件
   const processComponent = (oldVnode,newVnode,container,anchor)=>{
     if(oldVnode == null){
       // 挂载组件

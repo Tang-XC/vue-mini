@@ -1,6 +1,13 @@
 import { reactive } from "@vue/reactivity"
+import {onBeforeMount,onMounted} from './apiLifecycle'
 
 let uid = 0
+export const enum LifecycleHooks {
+  BEFORE_CREATE = 'bc',
+  CREATED = 'c',
+  BEFORE_MOUNT = 'bm',
+  MOUNTED = 'm'
+}
 export function createComponentInstance(vnode){
   const instance = {
     uid: uid++,
@@ -9,7 +16,12 @@ export function createComponentInstance(vnode){
     subTree:null,
     effect:null,
     update:null,
-    render:null
+    render:null,
+    isMounted:false,
+    bc:null,
+    c:null,
+    bm:null,
+    m:null
   }
   return instance
 }
@@ -26,11 +38,37 @@ export function finishComponentSetup(instance){
   applyOptions(instance)
 }
 function applyOptions(instance:any){
-  const {data:dataOptions} = instance.type
+  const {
+    data:dataOptions,
+    beforeCreate,
+    created,
+    beforeMount,
+    mounted
+  } = instance.type
+
+  // 触发beforeCreate生命周期函数
+  if(beforeCreate){
+    callHook(beforeCreate,instance.data)
+  }
+
   if(dataOptions){
     const data = dataOptions()
     if(typeof data === 'object'){
       instance.data = reactive(data)
     }
   }
+
+  // 触发created生命周期函数
+  if(created){
+    callHook(created,instance.data)
+  }
+  function registerLifecycleHook(register:Function,hook?:Function) {
+    register(hook?.bind(instance.data),instance)
+  }
+  registerLifecycleHook(onBeforeMount,beforeMount)
+  registerLifecycleHook(onMounted,mounted)
+}
+
+function callHook(hook:Function,proxy){
+  hook.call(proxy)
 }

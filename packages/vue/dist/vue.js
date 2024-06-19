@@ -515,6 +515,19 @@ var Vue = (function (exports) {
         return result;
     }
 
+    function injectHook(type, hook, target) {
+        // target是instance的组件实例
+        if (target) {
+            target[type] = hook;
+            return hook;
+        }
+    }
+    var createHook = function (lifecycle) {
+        return function (hook, target) { return injectHook(lifecycle, hook, target); };
+    };
+    var onBeforeMount = createHook("bm" /* LifecycleHooks.BEFORE_MOUNT */);
+    var onMounted = createHook("m" /* LifecycleHooks.MOUNTED */);
+
     var uid = 0;
     function createComponentInstance(vnode) {
         var instance = {
@@ -524,7 +537,12 @@ var Vue = (function (exports) {
             subTree: null,
             effect: null,
             update: null,
-            render: null
+            render: null,
+            isMounted: false,
+            bc: null,
+            c: null,
+            bm: null,
+            m: null
         };
         return instance;
     }
@@ -541,13 +559,29 @@ var Vue = (function (exports) {
         applyOptions(instance);
     }
     function applyOptions(instance) {
-        var dataOptions = instance.type.data;
+        var _a = instance.type, dataOptions = _a.data, beforeCreate = _a.beforeCreate, created = _a.created, beforeMount = _a.beforeMount, mounted = _a.mounted;
+        // 触发beforeCreate生命周期函数
+        if (beforeCreate) {
+            callHook(beforeCreate, instance.data);
+        }
         if (dataOptions) {
             var data = dataOptions();
             if (typeof data === 'object') {
                 instance.data = reactive(data);
             }
         }
+        // 触发created生命周期函数
+        if (created) {
+            callHook(created, instance.data);
+        }
+        function registerLifecycleHook(register, hook) {
+            register(hook === null || hook === void 0 ? void 0 : hook.bind(instance.data), instance);
+        }
+        registerLifecycleHook(onBeforeMount, beforeMount);
+        registerLifecycleHook(onMounted, mounted);
+    }
+    function callHook(hook, proxy) {
+        hook.call(proxy);
     }
 
     // 创建renderer
@@ -601,8 +635,17 @@ var Vue = (function (exports) {
         var setupRenderEffect = function (instance, initialVnode, container, anchor) {
             var componentUpdateFn = function () {
                 if (!instance.isMounted) {
+                    var bm = instance.bm, m = instance.m;
+                    // 触发beforeMount生命周期函数
+                    if (bm) {
+                        bm();
+                    }
                     var subTree = (instance.subTree = renderComponentRoot(instance));
                     patch(null, subTree, container, anchor);
+                    // 触发mounted生命周期函数
+                    if (m) {
+                        m();
+                    }
                     initialVnode.el = subTree.el;
                 }
             };
@@ -652,6 +695,7 @@ var Vue = (function (exports) {
         var unmountElement = function (vnode) {
             hostRemove(vnode.el);
         };
+        // 处理HTML普通元素节点
         var processElement = function (oldVnode, newVnode, container, anchor) {
             if (oldVnode == null) {
                 // 挂载element
@@ -662,6 +706,7 @@ var Vue = (function (exports) {
                 patchElement(oldVnode, newVnode);
             }
         };
+        // 处理文本节点
         var processText = function (oldVnode, newVnode, container, anchor) {
             if (oldVnode == null) {
                 newVnode.el = hostCreateText(newVnode.children);
@@ -674,6 +719,7 @@ var Vue = (function (exports) {
                 }
             }
         };
+        // 处理Fragment
         var processFragment = function (oldVnode, newVnode, container, anchor) {
             if (oldVnode == null) {
                 mountChildren(newVnode.children, container, anchor);
@@ -682,6 +728,7 @@ var Vue = (function (exports) {
                 patchChildren(oldVnode, newVnode, container);
             }
         };
+        // 处理组件
         var processComponent = function (oldVnode, newVnode, container, anchor) {
             if (oldVnode == null) {
                 // 挂载组件
