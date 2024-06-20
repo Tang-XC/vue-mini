@@ -34,7 +34,7 @@ function baseCreateRenderer(opitons:RendererOptions):any{
     const c1 = oldVnode && oldVnode.children
     const c2 = newVnode && newVnode.children
     const prevShapeFlag = oldVnode ? oldVnode.shapeFlag : 0
-    const {shapeFlag} = newVnode
+    const {shapeFlag} = newVnode 
     if(shapeFlag & ShapeFlags.TEXT_CHILDREN){
       // 当新节点是文本节点时,而旧节点是数组节点时
       if(prevShapeFlag & ShapeFlags.ARRAY_CHILDREN){
@@ -50,6 +50,7 @@ function baseCreateRenderer(opitons:RendererOptions):any{
         // 当新节点是数组节点时
         if(shapeFlag & ShapeFlags.ARRAY_CHILDREN){
           // diff
+          patchKeyedChildren(c1,c2,container,anchor)
         } else {
           // 卸载
         }
@@ -64,6 +65,23 @@ function baseCreateRenderer(opitons:RendererOptions):any{
           // 单独新子节点的挂载
         }
       }
+    }
+  }
+  const patchKeyedChildren = (oldChildren,newChildren,container,parentAnchor)=>{
+    let i = 0;
+    const newChildrenLength = newChildren.length
+    let oldChildrenEnd = oldChildren.length - 1
+    let newChildrenEnd = newChildrenLength - 1
+    // 1.自前向后
+    while(i <= oldChildrenEnd && i <= newChildrenEnd){
+      const oldVnode = oldChildren[i]
+      const newVnode = newChildren[i]
+      if(isSameVnodeType(oldVnode,newVnode)){
+        patch(oldVnode,newVnode,container,null)
+      } else {
+        break
+      }
+      i++
     }
   }
   const patchProps = (el:Element,vnode,oldProps,newProps)=>{
@@ -133,7 +151,7 @@ function baseCreateRenderer(opitons:RendererOptions):any{
       // 设置文本
       hostSetElementText(el,vnode.children)
     } else if(shapeFlag & ShapeFlags.ARRAY_CHILDREN){
-
+      mountChildren(vnode.children,el,anchor)
     }
     // 设置props 
     if(props){

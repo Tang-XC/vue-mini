@@ -401,7 +401,8 @@ var Vue = (function (exports) {
             type: type,
             props: props,
             children: children,
-            shapeFlag: shapeFlag
+            shapeFlag: shapeFlag,
+            key: (props === null || props === void 0 ? void 0 : props.key) || null
         };
         normalizeChildren(vnode, children);
         return vnode;
@@ -546,16 +547,32 @@ var Vue = (function (exports) {
         };
         return instance;
     }
+    function handleSetupResult(instance, setupResult) {
+        if (typeof setupResult === 'function') {
+            instance.render = setupResult;
+        }
+        finishComponentSetup(instance);
+    }
     function setupComponent(instance) {
         setupStatefulComponent(instance);
     }
     // 设置组件的初始状态
     function setupStatefulComponent(instance) {
-        finishComponentSetup(instance);
+        var Component = instance.type;
+        var setup = Component.setup;
+        if (setup) {
+            var setupResult = setup();
+            handleSetupResult(instance, setupResult);
+        }
+        else {
+            finishComponentSetup(instance);
+        }
     }
     function finishComponentSetup(instance) {
         var Component = instance.type;
-        instance.render = Component.render;
+        if (!instance.render) {
+            instance.render = Component.render;
+        }
         applyOptions(instance);
     }
     function applyOptions(instance) {
@@ -604,7 +621,13 @@ var Vue = (function (exports) {
             }
             else {
                 // 当新节点不是文本节点时，而旧节点是数组节点时
-                if (prevShapeFlag & 16 /* ShapeFlags.ARRAY_CHILDREN */) ;
+                if (prevShapeFlag & 16 /* ShapeFlags.ARRAY_CHILDREN */) {
+                    // 当新节点是数组节点时
+                    if (shapeFlag & 16 /* ShapeFlags.ARRAY_CHILDREN */) {
+                        // diff
+                        patchKeyedChildren(c1, c2, container);
+                    }
+                }
                 else {
                     // 当旧节点不是数组节点时,而旧节点时文本节点时
                     if (prevShapeFlag & 8 /* ShapeFlags.TEXT_CHILDREN */) {
@@ -612,6 +635,24 @@ var Vue = (function (exports) {
                         hostSetElementText(container, '');
                     }
                 }
+            }
+        };
+        var patchKeyedChildren = function (oldChildren, newChildren, container, parentAnchor) {
+            var i = 0;
+            var newChildrenLength = newChildren.length;
+            var oldChildrenEnd = oldChildren.length - 1;
+            var newChildrenEnd = newChildrenLength - 1;
+            // 1.自前向后
+            while (i <= oldChildrenEnd && i <= newChildrenEnd) {
+                var oldVnode = oldChildren[i];
+                var newVnode = newChildren[i];
+                if (isSameVnodeType(oldVnode, newVnode)) {
+                    patch(oldVnode, newVnode, container, null);
+                }
+                else {
+                    break;
+                }
+                i++;
             }
         };
         var patchProps = function (el, vnode, oldProps, newProps) {
@@ -635,6 +676,7 @@ var Vue = (function (exports) {
         };
         var setupRenderEffect = function (instance, initialVnode, container, anchor) {
             var componentUpdateFn = function () {
+                // 根据组件是否挂载来判断组件式否进行渲染或更新
                 if (!instance.isMounted) {
                     // -渲染组件
                     var bm = instance.bm, m = instance.m;
@@ -675,6 +717,9 @@ var Vue = (function (exports) {
             if (shapeFlag & 8 /* ShapeFlags.TEXT_CHILDREN */) {
                 // 设置文本
                 hostSetElementText(el, vnode.children);
+            }
+            else if (shapeFlag & 16 /* ShapeFlags.ARRAY_CHILDREN */) {
+                mountChildren(vnode.children, el, anchor);
             }
             // 设置props 
             if (props) {
