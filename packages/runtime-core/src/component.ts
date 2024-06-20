@@ -25,16 +25,33 @@ export function createComponentInstance(vnode){
   }
   return instance
 }
+export function handleSetupResult(instance,setupResult){
+  if(typeof setupResult === 'function'){
+    instance.render = setupResult
+  }
+  finishComponentSetup(instance)
+}
+
 export function setupComponent(instance){
   setupStatefulComponent(instance)
 }
 // 设置组件的初始状态
 function setupStatefulComponent(instance){
-  finishComponentSetup(instance)
+  const Component = instance.type
+  const {setup} = Component
+  if(setup){
+    const setupResult = setup()
+    handleSetupResult(instance,setupResult)
+  } else {
+    finishComponentSetup(instance)
+  }
+  
 }
 export function finishComponentSetup(instance){
   const Component = instance.type 
-  instance.render = Component.render
+  if(!instance.render){
+    instance.render = Component.render
+  }
   applyOptions(instance)
 }
 function applyOptions(instance:any){

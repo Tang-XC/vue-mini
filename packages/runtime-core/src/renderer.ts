@@ -87,6 +87,7 @@ function baseCreateRenderer(opitons:RendererOptions):any{
   }
   const setupRenderEffect = (instance,initialVnode,container,anchor)=>{
     const componentUpdateFn = ()=>{
+      // 根据组件是否挂载来判断组件式否进行渲染或更新
       if(!instance.isMounted){
         // -渲染组件
 
