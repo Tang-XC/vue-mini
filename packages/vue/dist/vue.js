@@ -564,6 +564,7 @@ var Vue = (function (exports) {
         if (beforeCreate) {
             callHook(beforeCreate, instance.data);
         }
+        // 将data选项中的数据转化为响应式数据
         if (dataOptions) {
             var data = dataOptions();
             if (typeof data === 'object') {
@@ -635,6 +636,7 @@ var Vue = (function (exports) {
         var setupRenderEffect = function (instance, initialVnode, container, anchor) {
             var componentUpdateFn = function () {
                 if (!instance.isMounted) {
+                    // -渲染组件
                     var bm = instance.bm, m = instance.m;
                     // 触发beforeMount生命周期函数
                     if (bm) {
@@ -647,6 +649,19 @@ var Vue = (function (exports) {
                         m();
                     }
                     initialVnode.el = subTree.el;
+                    instance.isMounted = true;
+                }
+                else {
+                    // -更新组件
+                    var next = instance.next, vnode = instance.vnode;
+                    if (!next) {
+                        next = vnode;
+                    }
+                    var nextTree = renderComponentRoot(instance);
+                    var prevTree = instance.subTree;
+                    instance.subTree = nextTree;
+                    patch(prevTree, nextTree, container, anchor);
+                    next.el = nextTree.el;
                 }
             };
             var effect = (instance.efect = new ReactiveEffect(componentUpdateFn, function () { return queuePreFlushCb(update); }));

@@ -88,6 +88,8 @@ function baseCreateRenderer(opitons:RendererOptions):any{
   const setupRenderEffect = (instance,initialVnode,container,anchor)=>{
     const componentUpdateFn = ()=>{
       if(!instance.isMounted){
+        // -渲染组件
+
         const {bm,m} = instance
 
         // 触发beforeMount生命周期函数
@@ -104,8 +106,18 @@ function baseCreateRenderer(opitons:RendererOptions):any{
         }
 
         initialVnode.el = subTree.el
+        instance.isMounted = true
       } else {
-
+        // -更新组件
+        let {next,vnode} = instance
+        if(!next){
+          next = vnode
+        }
+        const nextTree = renderComponentRoot(instance)
+        const prevTree = instance.subTree
+        instance.subTree = nextTree
+        patch(prevTree,nextTree,container,anchor)
+        next.el = nextTree.el
       }
     }
     const effect = (instance.efect = new ReactiveEffect(componentUpdateFn,()=>queuePreFlushCb(update)))

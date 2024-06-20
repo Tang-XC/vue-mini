@@ -29,6 +29,9 @@
       },
       mounted(){
         console.log('mounted')
+        setTimeout(()=>{
+          console.log(this.str = 'HEllo THERE')
+        },2000)
       },
       render(){
         return h('div',this.str)

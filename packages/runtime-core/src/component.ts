@@ -51,6 +51,7 @@ function applyOptions(instance:any){
     callHook(beforeCreate,instance.data)
   }
 
+  // 将data选项中的数据转化为响应式数据
   if(dataOptions){
     const data = dataOptions()
     if(typeof data === 'object'){
@@ -62,6 +63,7 @@ function applyOptions(instance:any){
   if(created){
     callHook(created,instance.data)
   }
+  
   function registerLifecycleHook(register:Function,hook?:Function) {
     register(hook?.bind(instance.data),instance)
   }
