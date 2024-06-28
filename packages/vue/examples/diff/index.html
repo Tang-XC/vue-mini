@@ -10,15 +10,24 @@
   <div id="app"></div>
   <script>
     const {render,h} = Vue;
-    const node1 = h('ul',[
+    const node1 = h('ul',{
+      class:{
+        'list':true,
+        'item':true,
+      }
+    },[
       h('li',{key:1},'A'),
       h('li',{key:2},'B'),
       h('li',{key:3},'C'),
+      h('li',{key:4},'D'),
+      h('li',{key:5},'E'),
     ])
     const node2 = h('ul',[
-      h('li',{key:1},'A'),
-      h('li',{key:2},'B'),
-      h('li',{key:3},'D'),
+      h('li',{key:1},'new-A'),
+      h('li',{key:3},'new-C'),
+      h('li',{key:2},'new-B'),
+      h('li',{key:6},'new-F'),
+      h('li',{key:5},'new-E'),
     ])
     render(node1,document.querySelector('#app'))
     setTimeout(()=>{

@@ -409,7 +409,6 @@ var Vue = (function (exports) {
     }
     function normalizeChildren(vnode, children) {
         var type = 0;
-        vnode.shapeFlag;
         if (children == null) {
             children = null;
         }
@@ -569,6 +568,7 @@ var Vue = (function (exports) {
         }
     }
     function finishComponentSetup(instance) {
+        console.log(instance);
         var Component = instance.type;
         if (!instance.render) {
             instance.render = Component.render;
@@ -614,22 +614,30 @@ var Vue = (function (exports) {
             var prevShapeFlag = oldVnode ? oldVnode.shapeFlag : 0;
             var shapeFlag = newVnode.shapeFlag;
             if (shapeFlag & 8 /* ShapeFlags.TEXT_CHILDREN */) {
+                // 当新节点是文本节点时,而旧节点是数组节点时
+                if (prevShapeFlag & 16 /* ShapeFlags.ARRAY_CHILDREN */) {
+                    // 卸载旧子节点
+                    unmountElement(oldVnode);
+                }
                 // 如果新旧不相同则设置新节点的text
                 if (c2 !== c1) {
                     hostSetElementText(container, c2);
                 }
             }
             else {
-                // 当新节点不是文本节点时，而旧节点是数组节点时
                 if (prevShapeFlag & 16 /* ShapeFlags.ARRAY_CHILDREN */) {
-                    // 当新节点是数组节点时
+                    // 当新节点和旧节点都是数组节点时
                     if (shapeFlag & 16 /* ShapeFlags.ARRAY_CHILDREN */) {
                         // diff
-                        patchKeyedChildren(c1, c2, container);
+                        patchKeyedChildren(c1, c2, container, anchor);
+                    }
+                    else {
+                        // 卸载
+                        unmountElement(oldVnode);
                     }
                 }
                 else {
-                    // 当旧节点不是数组节点时,而旧节点时文本节点时
+                    // 当旧节点不是数组节点时,而新节点是文本节点时
                     if (prevShapeFlag & 8 /* ShapeFlags.TEXT_CHILDREN */) {
                         // 删除旧节点的text
                         hostSetElementText(container, '');
@@ -654,6 +662,118 @@ var Vue = (function (exports) {
                 }
                 i++;
             }
+            // 2.自后向前
+            while (i <= oldChildrenEnd && i <= newChildrenEnd) {
+                var oldVnode = oldChildren[oldChildrenEnd];
+                var newVnode = newChildren[newChildrenEnd];
+                if (isSameVnodeType(oldVnode, newVnode)) {
+                    patch(oldVnode, newVnode, container, null);
+                }
+                else {
+                    break;
+                }
+                oldChildrenEnd--;
+                newChildrenEnd--;
+            }
+            // 3.新节点多于旧节点
+            if (i > oldChildrenEnd) {
+                if (i <= newChildrenEnd) {
+                    var nextPos = newChildrenEnd + 1;
+                    var anchor = nextPos < newChildrenLength ? newChildren[nextPos].el : parentAnchor;
+                    while (i <= newChildrenEnd) {
+                        // 将元素挂载到指定的锚点位置，锚点位置在新节点的锚点位置，具体是锚点位置，
+                        patch(null, normalizeVnode(newChildren[i]), container, anchor);
+                        i++;
+                    }
+                }
+                // 4.删除多余节点
+            }
+            else if (i > newChildrenEnd) {
+                while (i <= oldChildrenEnd) {
+                    unmountElement(oldChildren[i]);
+                    i++;
+                }
+            }
+            // 5. 乱序的 diff 比对
+            else {
+                var oldStartIndex = i; // 旧子节点开始的索引
+                var newStartIndex = i; // 新子节点开始的索引
+                // 5.1 创建一个 <key (新节点的key)：index(新节点的位置)的Map对象
+                // 通过该对象可知：新的child(根据key判断指定child)更新后的位置（根据对应的index判断)在哪里
+                var keyToNewIndexMap = new Map();
+                for (i = newStartIndex; i <= newChildrenEnd; i++) {
+                    var nextChild = normalizeVnode(newChildren[i]);
+                    if (nextChild.key != null) {
+                        keyToNewIndexMap.set(nextChild.key, i);
+                    }
+                }
+                // 5.2 遍历oldChildren，并尝试进行patch（打补丁）或unmount（删除）旧节点
+                var j = void 0;
+                var patched = 0; // 记录已经修复的新节点数量，
+                var toBePatched = newChildrenEnd - newStartIndex + 1; // 新节点待修补的数量
+                var moved = false; // 标记位：节点是否需要移动
+                var maxNewIndexSoFar = 0; // 配合moved进行使用，始终保存当前最大的index值
+                //创建一个Array的对象，用来确定最长递增子序列
+                var newIndexToOldIndexMap = new Array(toBePatched);
+                for (i = 0; i < toBePatched; i++)
+                    newIndexToOldIndexMap[i] = 0;
+                for (i = oldStartIndex; i <= oldChildrenEnd; i++) {
+                    var prevChild = oldChildren[i];
+                    if (patched >= toBePatched) {
+                        unmountElement(prevChild);
+                        continue;
+                    }
+                    var newIndex = void 0;
+                    if (prevChild.key != null) {
+                        newIndex = keyToNewIndexMap.get(prevChild.key);
+                    }
+                    if (newIndex === undefined) {
+                        unmountElement(prevChild);
+                    }
+                    else {
+                        newIndexToOldIndexMap[newIndex - newStartIndex] = i + 1;
+                        if (newIndex >= maxNewIndexSoFar) {
+                            maxNewIndexSoFar = newIndex;
+                        }
+                        else {
+                            moved = true;
+                        }
+                        patch(prevChild, newChildren[newIndex], container, null);
+                        patched++;
+                    }
+                }
+                // 5.3 针对移动和挂载的处理
+                // 仅当节点需要移动的时候，我们才需要最长递增子序列，否则只需要有一个空数组即可
+                var increasingNewIndexSequence = moved
+                    ? getSequence(newIndexToOldIndexMap)
+                    : [];
+                j = increasingNewIndexSequence.length - 1;
+                for (i = toBePatched - 1; i >= 0; i--) {
+                    var nextIndex = newStartIndex + i;
+                    var nextChild = newChildren[nextIndex];
+                    var anchor = nextIndex + 1 < newChildrenLength
+                        ? newChildren[nextIndex + 1].el
+                        : parentAnchor;
+                    // 表示新节点没有对应的旧节点，此时需要挂载新节点
+                    if (newIndexToOldIndexMap[i] === 0) {
+                        patch(null, nextChild, container, anchor);
+                    }
+                    else if (moved) {
+                        // j < 0 表示不存在，表示需要移动
+                        // i !== increasingNewIndexSequence[j] 表示当前节点不在最后位置
+                        if (j < 0 || i !== increasingNewIndexSequence[j]) {
+                            move(nextChild, container, anchor);
+                        }
+                        else {
+                            j--;
+                        }
+                    }
+                }
+            }
+        };
+        var move = function (vnode, container, anchor) {
+            var el = vnode.el;
+            hostInsert(el, container, anchor);
         };
         var patchProps = function (el, vnode, oldProps, newProps) {
             if (oldProps !== newProps) {
@@ -706,7 +826,7 @@ var Vue = (function (exports) {
                     next.el = nextTree.el;
                 }
             };
-            var effect = (instance.efect = new ReactiveEffect(componentUpdateFn, function () { return queuePreFlushCb(update); }));
+            var effect = (instance.effect = new ReactiveEffect(componentUpdateFn, function () { return queuePreFlushCb(update); }));
             var update = (instance.update = function () { return effect.run(); });
             update();
         };
@@ -721,7 +841,7 @@ var Vue = (function (exports) {
             else if (shapeFlag & 16 /* ShapeFlags.ARRAY_CHILDREN */) {
                 mountChildren(vnode.children, el, anchor);
             }
-            // 设置props 
+            // 设置props
             if (props) {
                 for (var key in props) {
                     hostPatchProp(el, key, null, props[key]);
@@ -749,7 +869,7 @@ var Vue = (function (exports) {
             var el = (newVnode.el = oldVnode.el);
             var oldProps = oldVnode.props || {};
             var newProps = newVnode.props || {};
-            patchChildren(oldVnode, newVnode, el);
+            patchChildren(oldVnode, newVnode, el, null);
             patchProps(el, newVnode, oldProps, newProps);
         };
         var unmountElement = function (vnode) {
@@ -785,7 +905,7 @@ var Vue = (function (exports) {
                 mountChildren(newVnode.children, container, anchor);
             }
             else {
-                patchChildren(oldVnode, newVnode, container);
+                patchChildren(oldVnode, newVnode, container, anchor);
             }
         };
         // 处理组件
@@ -795,6 +915,7 @@ var Vue = (function (exports) {
                 mountComponent(newVnode, container, anchor);
             }
         };
+        // 处理虚拟DOM的更新
         var patch = function (oldVnode, newVnode, container, anchor) {
             if (anchor === void 0) { anchor = null; }
             if (oldVnode === newVnode)
@@ -826,7 +947,7 @@ var Vue = (function (exports) {
         var render = function (vnode, container) {
             // 传入元素为null，则卸载元素
             if (vnode === null) {
-                // 判定旧节点是否存在，存在则卸载
+                // _vnode表示旧节点，这里判定旧节点是否存在，存在则卸载
                 if (container._vnode) {
                     unmountElement(container._vnode);
                 }
@@ -840,6 +961,48 @@ var Vue = (function (exports) {
         return {
             render: render
         };
+    }
+    // 获取最长递增子序列
+    function getSequence(arr) {
+        var p = arr.slice();
+        var result = [0];
+        var i, j, u, v, c;
+        var len = arr.length;
+        for (i = 0; i < len; i++) {
+            var arrI = arr[i];
+            if (arrI !== 0) {
+                j = result[result.length - 1];
+                if (arr[j] < arrI) {
+                    p[i] = j;
+                    result.push(i);
+                    continue;
+                }
+                u = 0;
+                v = result.length - 1;
+                while (u < v) {
+                    c = (u + v) >> 1;
+                    if (arr[result[c]] < arrI) {
+                        u = c + 1;
+                    }
+                    else {
+                        v = c;
+                    }
+                }
+                if (arrI < arr[result[u]]) {
+                    if (u > 0) {
+                        p[i] = result[u - 1];
+                    }
+                    result[u] = i;
+                }
+            }
+        }
+        u = result.length;
+        v = result[u - 1];
+        while (u-- > 0) {
+            result[u] = v;
+            v = p[v];
+        }
+        return result;
     }
 
     function patchClass(el, value) {
