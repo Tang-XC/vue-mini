@@ -1154,9 +1154,141 @@ var Vue = (function (exports) {
         (_a = ensureRenderer()).render.apply(_a, __spreadArray([], __read(args), false));
     };
 
+    function createParserContext(content) {
+        return {
+            source: content
+        };
+    }
+    function baseParse(content) {
+        var context = createParserContext(content);
+        var children = parseChildren(context, []);
+        console.log(children);
+        return {};
+    }
+    // 该函数用于解析解析器上下文中的子节点
+    function parseChildren(context, ancestors) {
+        var nodes = [];
+        while (!isEnd(context, ancestors)) {
+            var s = context.source;
+            var node 
+            // 判断是否为插值语法
+            = void 0;
+            // 判断是否为插值语法
+            if (startsWith(s, '{{')) ;
+            else if (s[0] === '<') {
+                if (/[a-z]/i.test(s[1])) {
+                    node = parseElement(context, ancestors);
+                }
+            }
+            if (!node) {
+                node = parseText(context);
+            }
+            pushNode(nodes, node);
+        }
+        return nodes;
+    }
+    // 处理标签
+    function parseElement(context, ancestors) {
+        // 先处理开始标签
+        var element = parseTag(context);
+        // 添加自节点
+        ancestors.push(element);
+        // 递归触发 parseChildren
+        var children = parseChildren(context, ancestors);
+        ancestors.pop();
+        // 为子节点赋值
+        element.children = children;
+        // 最后处理结束标签
+        if (startsWithEndTagOpen(context.source, element.tag)) {
+            parseTag(context);
+        }
+        // 整个标签处理完成
+        return element;
+    }
+    function parseTag(context, type) {
+        // 通过正则获取标签
+        var match = /^<\/?([a-z][^\r\n\t\f />]*)/i.exec(context.source);
+        // 标签名
+        var tag = match[1];
+        //对模板进行解析处理
+        advanceBy(context, match[0].length);
+        // --- 处理标签结束部分 ---
+        // 判断是否为自关闭标签，例如<img/>
+        var isSelfClosing = startsWith(context.source, '/>');
+        // 《继续》对模板进行解析处理，是自关闭标签则处理两个字符 /> ，不是则处理一个字符 >
+        advanceBy(context, isSelfClosing ? 2 : 1);
+        //标签类型
+        var tagType = 0 /* ElementTypes.ELEMENT */;
+        return {
+            type: 1 /* NodeTypes.ELEMENT */,
+            tag: tag,
+            TagType: tagType,
+            children: [],
+            props: []
+        };
+    }
+    // 判断是否为标签结束部分
+    function startsWithEndTagOpen(source, tag) {
+        return startsWith(source, '</');
+    }
+    // 该函数的功能是解析文本内容，并返回一个包含文本类型和内容的对象。
+    function parseText(context) {
+        var endTokens = ['<', '{{'];
+        var endIndex = context.source.length;
+        for (var i = 0; i < endTokens.length; i++) {
+            var index = context.source.indexOf(endTokens[i], 1);
+            if (index !== -1 && endIndex > index) {
+                endIndex = index;
+            }
+        }
+        var content = parseTextData(context, endIndex);
+        return {
+            type: 2 /* NodeTypes.TEXT */,
+            content: content
+        };
+    }
+    // 该函数将文本节点中的文本内容解析出来并返回，再将其从context中截掉
+    function parseTextData(context, length) {
+        var rawText = context.source.slice(0, length);
+        advanceBy(context, length);
+        return rawText;
+    }
+    function pushNode(nodes, node) {
+        nodes.push(node);
+    }
+    function advanceBy(context, numberOfCharacters) {
+        var source = context.source;
+        context.source = source.slice(numberOfCharacters);
+    }
+    function startsWith(source, searchString) {
+        return source.startsWith(searchString);
+    }
+    function isEnd(context, ancestors) {
+        var s = context.source;
+        // 解析是否为结束标签
+        if (startsWith(s, '</')) {
+            for (var i = ancestors.length - 1; i >= 0; i--) {
+                if (startsWithEndTagOpen(s, ancestors[i].tag)) {
+                    return true;
+                }
+            }
+        }
+        return !s;
+    }
+
+    function baseCompile(template, options) {
+        baseParse(template);
+        return {};
+    }
+
+    function compile(template, options) {
+        return baseCompile(template);
+    }
+
     exports.Component = Component;
     exports.Fragment = Fragment;
     exports.Text = Text;
+    exports.compile = compile;
     exports.computed = computed;
     exports.effect = effect;
     exports.h = h;
