@@ -1159,11 +1159,17 @@ var Vue = (function (exports) {
             source: content
         };
     }
+    function createRoot(children) {
+        return {
+            type: 0 /* NodeTypes.ROOT */,
+            children: children,
+            loc: {}
+        };
+    }
     function baseParse(content) {
         var context = createParserContext(content);
         var children = parseChildren(context, []);
-        console.log(children);
-        return {};
+        return createRoot(children);
     }
     // 该函数用于解析解析器上下文中的子节点
     function parseChildren(context, ancestors) {
@@ -1222,14 +1228,10 @@ var Vue = (function (exports) {
         return {
             type: 1 /* NodeTypes.ELEMENT */,
             tag: tag,
-            TagType: tagType,
+            tagType: tagType,
             children: [],
             props: []
         };
-    }
-    // 判断是否为标签结束部分
-    function startsWithEndTagOpen(source, tag) {
-        return startsWith(source, '</');
     }
     // 该函数的功能是解析文本内容，并返回一个包含文本类型和内容的对象。
     function parseText(context) {
@@ -1263,6 +1265,10 @@ var Vue = (function (exports) {
     function startsWith(source, searchString) {
         return source.startsWith(searchString);
     }
+    // 判断是否为标签结束部分
+    function startsWithEndTagOpen(source, tag) {
+        return startsWith(source, '</');
+    }
     function isEnd(context, ancestors) {
         var s = context.source;
         // 解析是否为结束标签
@@ -1277,7 +1283,8 @@ var Vue = (function (exports) {
     }
 
     function baseCompile(template, options) {
-        baseParse(template);
+        var ast = baseParse(template);
+        console.log(ast);
         return {};
     }
 

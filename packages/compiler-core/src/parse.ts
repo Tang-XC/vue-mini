@@ -11,11 +11,17 @@ function createParserContext(content: string): ParserContext {
     source: content
   }
 }
+export function createRoot(children) {
+  return {
+    type: NodeTypes.ROOT,
+    children,
+    loc: {}
+  }
+}
 export function baseParse(content: string) {
   const context = createParserContext(content)
   const children = parseChildren(context, [])
-  console.log(children)
-  return {}
+  return createRoot(children)
 }
 
 // 该函数用于解析解析器上下文中的子节点
@@ -86,17 +92,11 @@ function parseTag(context: ParserContext, type: TagType) {
   return {
     type: NodeTypes.ELEMENT,
     tag,
-    TagType: tagType,
+    tagType: tagType,
     children: [],
     props: []
   }
 }
-
-// 判断是否为标签结束部分
-function startsWithEndTagOpen(source: string, tag: string): boolean {
-  return startsWith(source, '</')
-}
-
 // 该函数的功能是解析文本内容，并返回一个包含文本类型和内容的对象。
 function parseText(context: ParserContext) {
   const endTokens = ['<', '{{']
@@ -119,6 +119,7 @@ function parseTextData(context: ParserContext, length: number) {
   advanceBy(context, length)
   return rawText
 }
+
 function pushNode(nodes, node) {
   nodes.push(node)
 }
@@ -129,6 +130,10 @@ function advanceBy(context: ParserContext, numberOfCharacters: number) {
 
 function startsWith(source: string, searchString: string) {
   return source.startsWith(searchString)
+}
+// 判断是否为标签结束部分
+function startsWithEndTagOpen(source: string, tag: string): boolean {
+  return startsWith(source, '</')
 }
 function isEnd(context: ParserContext, ancestors: any[]) {
   const s = context.source
