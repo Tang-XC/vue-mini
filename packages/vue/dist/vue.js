@@ -1282,14 +1282,153 @@ var Vue = (function (exports) {
         return !s;
     }
 
+    function transform(root, options) {
+        var context = createTransformContext(root, options);
+        traverseNode(root, context);
+    }
+    // 该函数用于创建一个转换上下文对象，用于在节点转换过程中保存状态和提供辅助函数
+    function createTransformContext(root, _a) {
+        var _b = _a.nodeTransforms, nodeTransforms = _b === void 0 ? [] : _b;
+        var context = {
+            nodeTransforms: nodeTransforms,
+            root: root,
+            helpers: new Map(),
+            currentNode: root,
+            parent: null,
+            childIndex: 0,
+            // 获取辅助函数名称
+            helper: function (name) {
+                var count = context.helpers.get(name) || 0;
+                context.helpers.set(name, count + 1);
+                return name;
+            }
+        };
+        return context;
+    }
+    //深度优先遍历转化
+    function traverseNode(node, context) {
+        context.currentNode = node;
+        var nodeTransforms = context.nodeTransforms;
+        var exitFns = [];
+        for (var i_1 = 0; i_1 < nodeTransforms.length; i_1++) {
+            var onExit = nodeTransforms[i_1](node, context);
+            if (onExit) {
+                exitFns.push(onExit);
+            }
+        }
+        switch (node.type) {
+            case 1 /* NodeTypes.ELEMENT */:
+            case 0 /* NodeTypes.ROOT */:
+                traverseChildren(node, context);
+                break;
+        }
+        context.currentNode = node;
+        var i = exitFns.length;
+        while (i--) {
+            exitFns[i]();
+        }
+    }
+    function traverseChildren(parent, context) {
+        parent.children.forEach(function (node, index) {
+            context.parent = parent;
+            context.childIndex = index;
+            traverseNode(node, context);
+        });
+    }
+
+    var _a;
+    var CREATE_ELEMENT_VNODE = Symbol('createElementVNode');
+    var CREATE_VNODE = Symbol('createVNode');
+    (_a = {},
+        _a[CREATE_ELEMENT_VNODE] = 'createElementVNode',
+        _a[CREATE_VNODE] = 'createVNode',
+        _a);
+
+    function createVNodeCall(context, tag, props, children) {
+        if (context) {
+            context.helper(CREATE_ELEMENT_VNODE);
+        }
+        return {
+            type: 13 /* NodeTypes.VNODE_CALL */,
+            tag: tag,
+            props: props,
+            children: children
+        };
+    }
+
+    var transformElement = function (node, context) {
+        return function postTransformElement() {
+            node = context.currentNode;
+            if (node.type !== 1 /* NodeTypes.ELEMENT */) {
+                return;
+            }
+            var tag = node.tag;
+            var vnodeTag = "\"".concat(tag, "\"");
+            var vnodeProps = [];
+            var vnodeChildren = node.children;
+            node.codegenNode = createVNodeCall(context, vnodeTag, vnodeProps, vnodeChildren);
+        };
+    };
+
+    function isText(node) {
+        // 节点类型为插值表达式或者文本
+        return node.type === 5 /* NodeTypes.INTERPOLATION */ || node.type === 2 /* NodeTypes.TEXT */;
+    }
+
+    // 将相邻的文本节点和表达式合并为一个表达式
+    var transformText = function (node, context) {
+        if (node.type === 0 /* NodeTypes.ROOT */ || // 根节点
+            node.type === 1 /* NodeTypes.ELEMENT */ || // 元素节点
+            node.type === 11 /* NodeTypes.FOR */ || // for节点
+            node.type === 10 /* NodeTypes.IF_BRANCH */ // if节点
+        ) {
+            return function () {
+                var children = node.children;
+                var currentContainer;
+                for (var i = 0; i < children.length; i++) {
+                    var child = children[i];
+                    if (isText(child)) {
+                        for (var j = i + 1; j < children.length; j++) {
+                            var next = children[j];
+                            if (isText(next)) {
+                                if (!currentContainer) {
+                                    currentContainer = children[i] = createCompoundExpression([child], child.loc);
+                                }
+                                currentContainer.children.push(" + ", next);
+                                children.splice(j, 1);
+                                j--;
+                            }
+                        }
+                    }
+                    else {
+                        currentContainer = undefined;
+                        break;
+                    }
+                }
+            };
+        }
+    };
+    function createCompoundExpression(children, loc) {
+        return {
+            type: 8 /* NodeTypes.COMPOUND_EXPRESSION */,
+            loc: loc,
+            children: children
+        };
+    }
+
     function baseCompile(template, options) {
+        if (options === void 0) { options = {}; }
         var ast = baseParse(template);
+        transform(ast, Object.assign(options, {
+            nodeTransforms: [transformElement, transformText]
+        }));
         console.log(ast);
+        console.log(JSON.stringify(ast));
         return {};
     }
 
     function compile(template, options) {
-        return baseCompile(template);
+        return baseCompile(template, options);
     }
 
     exports.Component = Component;

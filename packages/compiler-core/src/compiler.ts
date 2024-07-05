@@ -1,6 +1,16 @@
 import { baseParse } from './parse'
-export function baseCompile(template: string, options) {
+import { transform } from './transform'
+import { transformElement } from './transforms/transformElement'
+import { transformText } from './transforms/transformText'
+export function baseCompile(template: string, options = {}) {
   const ast = baseParse(template)
+  transform(
+    ast,
+    Object.assign(options, {
+      nodeTransforms: [transformElement, transformText]
+    })
+  )
   console.log(ast)
+  console.log(JSON.stringify(ast))
   return {}
 }
