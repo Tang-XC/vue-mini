@@ -1,4 +1,5 @@
 import { NodeTypes } from './ast'
+import { isSingleElementRoot } from './hoistStatic'
 
 export interface TransformContext {
   root
@@ -12,6 +13,14 @@ export interface TransformContext {
 export function transform(root, options) {
   const context = createTransformContext(root, options)
   traverseNode(root, context)
+  createRootCodegen(root)
+  root.helpers = [...context.helpers.keys()]
+  root.components = []
+  root.directives = []
+  root.imports = []
+  root.hoists = []
+  root.temps = []
+  root.cached = []
 }
 
 // 该函数用于创建一个转换上下文对象，用于在节点转换过程中保存状态和提供辅助函数
@@ -23,7 +32,6 @@ export function createTransformContext(root, { nodeTransforms = [] }) {
     currentNode: root, // 当前节点
     parent: null, // 父节点
     childIndex: 0, // 当前节点索引
-
     // 获取辅助函数名称
     helper(name) {
       const count = context.helpers.get(name) || 0
@@ -63,4 +71,18 @@ export function traverseChildren(parent, context: TransformContext) {
     context.childIndex = index
     traverseNode(node, context)
   })
+}
+
+function createRootCodegen(root) {
+  const { children } = root
+  // 处理单个根节点
+  if (children.length === 1) {
+    const child = children[0]
+    // 当根节点只有一个子节点，并且子节点是元素节点
+    if (isSingleElementRoot(root, child) && child.codegenNode) {
+      // 这一步意味着编译器将跳过创建额外的包裹元素，直接使用子元素的代码生成节点作为输出
+      // 从而简化渲染逻辑和提高性能
+      root.codegenNode = child.codegenNode
+    }
+  }
 }

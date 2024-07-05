@@ -40,6 +40,8 @@ export const enum ElementTypes {
   SLOT,
   TEMPLATE
 }
+
+// 该函数的目的是构造一个表示虚拟节点调用的对象
 export function createVNodeCall(context, tag, props?, children?) {
   if (context) {
     context.helper(CREATE_ELEMENT_VNODE)

@@ -1282,9 +1282,22 @@ var Vue = (function (exports) {
         return !s;
     }
 
+    function isSingleElementRoot(root, child) {
+        var children = root.children;
+        return children.length === 1 && child.type === 1 /* NodeTypes.ELEMENT */;
+    }
+
     function transform(root, options) {
         var context = createTransformContext(root, options);
         traverseNode(root, context);
+        createRootCodegen(root);
+        root.helpers = __spreadArray([], __read(context.helpers.keys()), false);
+        root.components = [];
+        root.directives = [];
+        root.imports = [];
+        root.hoists = [];
+        root.temps = [];
+        root.cached = [];
     }
     // 该函数用于创建一个转换上下文对象，用于在节点转换过程中保存状态和提供辅助函数
     function createTransformContext(root, _a) {
@@ -1335,6 +1348,19 @@ var Vue = (function (exports) {
             traverseNode(node, context);
         });
     }
+    function createRootCodegen(root) {
+        var children = root.children;
+        // 处理单个根节点
+        if (children.length === 1) {
+            var child = children[0];
+            // 当根节点只有一个子节点，并且子节点是元素节点
+            if (isSingleElementRoot(root, child) && child.codegenNode) {
+                // 这一步意味着编译器将跳过创建额外的包裹元素，直接使用子元素的代码生成节点作为输出
+                // 从而简化渲染逻辑和提高性能
+                root.codegenNode = child.codegenNode;
+            }
+        }
+    }
 
     var _a;
     var CREATE_ELEMENT_VNODE = Symbol('createElementVNode');
@@ -1344,6 +1370,7 @@ var Vue = (function (exports) {
         _a[CREATE_VNODE] = 'createVNode',
         _a);
 
+    // 该函数的目的是构造一个表示虚拟节点调用的对象
     function createVNodeCall(context, tag, props, children) {
         if (context) {
             context.helper(CREATE_ELEMENT_VNODE);
