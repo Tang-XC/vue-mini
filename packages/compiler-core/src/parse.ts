@@ -33,7 +33,7 @@ function parseChildren(context: ParserContext, ancestors) {
     // 判断是否为插值语法
     if (startsWith(s, '{{')) {
       // 模版插值语法
-      //。。。
+      const node = parseInterpolation(context)
       // 判断是否为标签开头
     } else if (s[0] === '<') {
       if (/[a-z]/i.test(s[1])) {
@@ -46,6 +46,22 @@ function parseChildren(context: ParserContext, ancestors) {
     pushNode(nodes, node)
   }
   return nodes
+}
+
+function parseInterpolation(context: ParserContext) {
+  const [open, close] = ['{{', '}}']
+  advanceBy(context, open.length)
+  const perTrimContent: String = context.source.indexOf(close, open.length) + ''
+  const content = perTrimContent.trim()
+  advanceBy(context, close.length)
+  return {
+    type: NodeTypes.INTERPOLATION,
+    content: {
+      type: NodeTypes.SIMPLE_EXPRESSION,
+      isStatic: false,
+      content
+    }
+  }
 }
 
 // 处理标签

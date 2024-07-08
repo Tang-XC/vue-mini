@@ -10,7 +10,7 @@
   <div id="app"></div>
   <script>
     const {compile,h,render} = Vue
-    const template = `<div>Hello world</div>`
+    const template = `<div>Hello world {{ 'hey hey' }}</div>`
     const renderFn = compile(template)
 
     const component = {

@@ -1184,7 +1184,11 @@ var Vue = (function (exports) {
             // 判断是否为插值语法
             = void 0;
             // 判断是否为插值语法
-            if (startsWith(s, '{{')) ;
+            if (startsWith(s, '{{')) {
+                // 模版插值语法
+                parseInterpolation(context);
+                // 判断是否为标签开头
+            }
             else if (s[0] === '<') {
                 if (/[a-z]/i.test(s[1])) {
                     node = parseElement(context, ancestors);
@@ -1196,6 +1200,21 @@ var Vue = (function (exports) {
             pushNode(nodes, node);
         }
         return nodes;
+    }
+    function parseInterpolation(context) {
+        var _a = __read(['{{', '}}'], 2), open = _a[0], close = _a[1];
+        advanceBy(context, open.length);
+        var perTrimContent = context.source.indexOf(close, open.length) + '';
+        var content = perTrimContent.trim();
+        advanceBy(context, close.length);
+        return {
+            type: 5 /* NodeTypes.INTERPOLATION */,
+            content: {
+                type: 4 /* NodeTypes.SIMPLE_EXPRESSION */,
+                isStatic: false,
+                content: content
+            }
+        };
     }
     // 处理标签
     function parseElement(context, ancestors) {
@@ -1291,6 +1310,16 @@ var Vue = (function (exports) {
         return children.length === 1 && child.type === 1 /* NodeTypes.ELEMENT */;
     }
 
+    var _a;
+    var CREATE_ELEMENT_VNODE = Symbol('createElementVNode');
+    var CREATE_VNODE = Symbol('createVNode');
+    var TO_DISPLAY_STRING = Symbol('toDisplayString');
+    var helperNameMap = (_a = {},
+        _a[CREATE_ELEMENT_VNODE] = 'createElementVNode',
+        _a[CREATE_VNODE] = 'createVNode',
+        _a[TO_DISPLAY_STRING] = 'toDisplayString',
+        _a);
+
     function transform(root, options) {
         var context = createTransformContext(root, options);
         traverseNode(root, context);
@@ -1338,6 +1367,9 @@ var Vue = (function (exports) {
             case 0 /* NodeTypes.ROOT */:
                 traverseChildren(node, context);
                 break;
+            case 5 /* NodeTypes.INTERPOLATION */:
+                context.helper(TO_DISPLAY_STRING);
+                break;
         }
         context.currentNode = node;
         var i = exitFns.length;
@@ -1365,14 +1397,6 @@ var Vue = (function (exports) {
             }
         }
     }
-
-    var _a;
-    var CREATE_ELEMENT_VNODE = Symbol('createElementVNode');
-    var CREATE_VNODE = Symbol('createVNode');
-    var helperNameMap = (_a = {},
-        _a[CREATE_ELEMENT_VNODE] = 'createElementVNode',
-        _a[CREATE_VNODE] = 'createVNode',
-        _a);
 
     // 该函数的目的是构造一个表示虚拟节点调用的对象
     function createVNodeCall(context, tag, props, children) {
@@ -1488,6 +1512,8 @@ var Vue = (function (exports) {
         var signature = args.join(', ');
         push("function ".concat(functionName, "(").concat(signature, "){"));
         indent();
+        push("with (_ctx) {");
+        indent();
         var hasHelpers = ast.helpers.length > 0;
         if (hasHelpers) {
             push("const { ".concat(ast.helpers.map(aliasHelper).join(', '), " } = _Vue"));
@@ -1502,6 +1528,8 @@ var Vue = (function (exports) {
         else {
             push("null");
         }
+        deindent();
+        push('}');
         deindent();
         push('}');
         return {
@@ -1524,10 +1552,41 @@ var Vue = (function (exports) {
             case 2 /* NodeTypes.TEXT */:
                 genText(node, context);
                 break;
+            case 4 /* NodeTypes.SIMPLE_EXPRESSION */:
+                genExpression(node, context);
+                break;
+            case 5 /* NodeTypes.INTERPOLATION */:
+                genInterpolation(node, context);
+                break;
+            case 8 /* NodeTypes.COMPOUND_EXPRESSION */:
+                genCompoundExpression(node, context);
+                break;
         }
     }
     function genText(node, context) {
+        console.log('context就是：', context);
         context.push(JSON.stringify(node.content), node);
+    }
+    function genExpression(node, context) {
+        var content = node.content, isStatic = node.isStatic;
+        context.push(isStatic ? JSON.stringify(content) : content);
+    }
+    function genInterpolation(node, context) {
+        var push = context.push, helper = context.helper;
+        push("".concat(helper(TO_DISPLAY_STRING), "("));
+        genNode(node.content, context);
+        push(')');
+    }
+    function genCompoundExpression(node, context) {
+        for (var i = 0; i < node.children.length; i++) {
+            var child = node.children[i];
+            if (typeof child === 'string') {
+                context.push(child);
+            }
+            else {
+                genNode(child, context);
+            }
+        }
     }
     function genVNodeCall(node, context) {
         var push = context.push, helper = context.helper;
