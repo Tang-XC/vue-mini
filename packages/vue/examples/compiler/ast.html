@@ -7,10 +7,17 @@
   <script src="../../dist/vue.js"></script>
 </head>
 <body>
+  <div id="app"></div>
   <script>
-    const {compile} = Vue
+    const {compile,h,render} = Vue
     const template = `<div>Hello world</div>`
     const renderFn = compile(template)
+
+    const component = {
+      render:renderFn
+    }
+    const vnode = h(component)
+    render(vnode,document.querySelector('#app'))
   </script>
 </body>
 </html>

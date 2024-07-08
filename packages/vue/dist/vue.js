@@ -392,7 +392,11 @@ var Vue = (function (exports) {
                 props.class = normalizeClass(klass);
             }
         }
-        var shapeFlag = typeof type === 'string' ? 1 /* ShapeFlags.ELEMENT */ : typeof type === 'object' ? 4 /* ShapeFlags.STATEFUL_COMPONENT */ : 0;
+        var shapeFlag = typeof type === 'string'
+            ? 1 /* ShapeFlags.ELEMENT */
+            : typeof type === 'object'
+                ? 4 /* ShapeFlags.STATEFUL_COMPONENT */
+                : 0;
         return createBaseVNode(type, props, children, shapeFlag);
     }
     function createBaseVNode(type, props, children, shapeFlag) {
@@ -1365,7 +1369,7 @@ var Vue = (function (exports) {
     var _a;
     var CREATE_ELEMENT_VNODE = Symbol('createElementVNode');
     var CREATE_VNODE = Symbol('createVNode');
-    (_a = {},
+    var helperNameMap = (_a = {},
         _a[CREATE_ELEMENT_VNODE] = 'createElementVNode',
         _a[CREATE_VNODE] = 'createVNode',
         _a);
@@ -1400,6 +1404,9 @@ var Vue = (function (exports) {
     function isText(node) {
         // 节点类型为插值表达式或者文本
         return node.type === 5 /* NodeTypes.INTERPOLATION */ || node.type === 2 /* NodeTypes.TEXT */;
+    }
+    function getVNodeHelper(ssr, isComponent) {
+        return ssr || isComponent ? CREATE_VNODE : CREATE_ELEMENT_VNODE;
     }
 
     // 将相邻的文本节点和表达式合并为一个表达式
@@ -1443,6 +1450,123 @@ var Vue = (function (exports) {
         };
     }
 
+    var aliasHelper = function (s) { return "".concat(helperNameMap[s], ": _").concat(helperNameMap[s]); };
+    function createCodegenContext(ast) {
+        var context = {
+            code: '',
+            runtimeGlobalName: 'Vue',
+            source: ast.loc.source,
+            indentLevel: 0,
+            isSSR: false,
+            helper: function (key) {
+                return "_".concat(helperNameMap[key]); // 需要触发的方法，关联JavaScript AST中的 helpers
+            },
+            push: function (code) {
+                context.code += code;
+            },
+            newline: function () {
+                newline(context.indentLevel);
+            },
+            indent: function () {
+                newline(++context.indentLevel);
+            },
+            deindent: function () {
+                newline(--context.indentLevel);
+            }
+        };
+        function newline(n) {
+            context.code += '\n' + "  ".repeat(n);
+        }
+        return context;
+    }
+    function generate(ast) {
+        var context = createCodegenContext(ast);
+        var push = context.push, newline = context.newline, indent = context.indent, deindent = context.deindent;
+        genFunctionPreamble(context);
+        var functionName = "render";
+        var args = ['_ctx', '_cache'];
+        var signature = args.join(', ');
+        push("function ".concat(functionName, "(").concat(signature, "){"));
+        indent();
+        var hasHelpers = ast.helpers.length > 0;
+        if (hasHelpers) {
+            push("const { ".concat(ast.helpers.map(aliasHelper).join(', '), " } = _Vue"));
+            push('\n');
+            newline();
+        }
+        newline();
+        push("return ");
+        if (ast.codegenNode) {
+            genNode(ast.codegenNode, context);
+        }
+        else {
+            push("null");
+        }
+        deindent();
+        push('}');
+        return {
+            ast: ast,
+            code: context.code
+        };
+    }
+    function genFunctionPreamble(context) {
+        var push = context.push, runtimeGlobalName = context.runtimeGlobalName, newline = context.newline;
+        var VueBinding = runtimeGlobalName;
+        push("const _Vue = ".concat(VueBinding, "\n"));
+        newline();
+        push("return ");
+    }
+    function genNode(node, context) {
+        switch (node.type) {
+            case 13 /* NodeTypes.VNODE_CALL */:
+                genVNodeCall(node, context);
+                break;
+            case 2 /* NodeTypes.TEXT */:
+                genText(node, context);
+                break;
+        }
+    }
+    function genText(node, context) {
+        context.push(JSON.stringify(node.content), node);
+    }
+    function genVNodeCall(node, context) {
+        var push = context.push, helper = context.helper;
+        var tag = node.tag, isComponent = node.isComponent, props = node.props, children = node.children, patchFlag = node.patchFlag, dynamicProps = node.dynamicProps; node.directives; node.isBlock; node.disableTracking;
+        var callHelper = getVNodeHelper(context.isSSR, isComponent);
+        push(helper(callHelper) + "(");
+        var args = genNullableArgs([tag, props, children, patchFlag, dynamicProps]);
+        genNodeList(args, context);
+        push(')');
+    }
+    function genNullableArgs(args) {
+        var i = args.length;
+        while (i--) {
+            if (args[i] != null)
+                break;
+        }
+        return args.slice(0, i + 1).map(function (arg) { return arg || "null"; });
+    }
+    function genNodeList(nodes, context) {
+        var push = context.push; context.newline;
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+            if (typeof node === 'string') {
+                push(node);
+            }
+            else if (node instanceof Array) {
+                context.push('[');
+                genNodeList(node, context);
+                context.push(']');
+            }
+            else {
+                genNode(node, context);
+            }
+            if (i < nodes.length - 1) {
+                push(", ");
+            }
+        }
+    }
+
     function baseCompile(template, options) {
         if (options === void 0) { options = {}; }
         var ast = baseParse(template);
@@ -1451,18 +1575,25 @@ var Vue = (function (exports) {
         }));
         console.log(ast);
         console.log(JSON.stringify(ast));
-        return {};
+        return generate(ast);
     }
 
     function compile(template, options) {
         return baseCompile(template, options);
     }
 
+    function compileToFunction(template, options) {
+        var code = compile(template, options).code;
+        var render = new Function(code)();
+        return render;
+    }
+
     exports.Component = Component;
     exports.Fragment = Fragment;
     exports.Text = Text;
-    exports.compile = compile;
+    exports.compile = compileToFunction;
     exports.computed = computed;
+    exports.createElementVNode = createVNode;
     exports.effect = effect;
     exports.h = h;
     exports.queuePreFlushCb = queuePreFlushCb;

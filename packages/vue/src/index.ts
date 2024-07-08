@@ -5,7 +5,8 @@ export {
   h,
   Fragment,
   Text,
-  Component
+  Component,
+  createElementVNode
 } from '@vue/runtime-core'
 export { render } from '@vue/runtime-dom'
-export { compile } from '@vue/compiler-dom'
+export { compile } from '@vue/vue-compat'
