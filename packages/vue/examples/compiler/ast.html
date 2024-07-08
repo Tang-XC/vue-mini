@@ -10,10 +10,16 @@
   <div id="app"></div>
   <script>
     const {compile,h,render} = Vue
-    const template = `<div>Hello world {{ 'hey hey' }}</div>`
+    const template = `<div>Hello world {{ msg }} </div>`
     const renderFn = compile(template)
+    console.log(renderFn)
 
     const component = {
+      data(){
+        return {
+          msg: 'hey hey hey'
+        }
+      },
       render:renderFn
     }
     const vnode = h(component)

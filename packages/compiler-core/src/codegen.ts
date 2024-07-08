@@ -103,10 +103,12 @@ function genNode(node, context) {
     case NodeTypes.COMPOUND_EXPRESSION:
       genCompoundExpression(node, context)
       break
+    case NodeTypes.ELEMENT:
+      genNode(node.codegenNode, context)
+      break
   }
 }
 function genText(node, context) {
-  console.log('context就是：', context)
   context.push(JSON.stringify(node.content), node)
 }
 function genExpression(node, context) {

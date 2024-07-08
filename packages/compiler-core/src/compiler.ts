@@ -11,7 +11,5 @@ export function baseCompile(template: string, options = {}) {
       nodeTransforms: [transformElement, transformText]
     })
   )
-  console.log(ast)
-  console.log(JSON.stringify(ast))
   return generate(ast)
 }

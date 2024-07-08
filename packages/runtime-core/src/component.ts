@@ -47,7 +47,6 @@ function setupStatefulComponent(instance) {
   }
 }
 export function finishComponentSetup(instance) {
-  console.log(instance)
   const Component = instance.type
   if (!instance.render) {
     instance.render = Component.render

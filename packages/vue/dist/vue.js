@@ -510,7 +510,8 @@ var Vue = (function (exports) {
         var result;
         try {
             if (vnode.shapeFlag & 4 /* ShapeFlags.STATEFUL_COMPONENT */) {
-                result = normalizeVnode(render.call(data));
+                console.log(data);
+                result = normalizeVnode(render.call(data, data));
             }
         }
         catch (error) {
@@ -572,7 +573,6 @@ var Vue = (function (exports) {
         }
     }
     function finishComponentSetup(instance) {
-        console.log(instance);
         var Component = instance.type;
         if (!instance.render) {
             instance.render = Component.render;
@@ -1186,7 +1186,7 @@ var Vue = (function (exports) {
             // 判断是否为插值语法
             if (startsWith(s, '{{')) {
                 // 模版插值语法
-                parseInterpolation(context);
+                node = parseInterpolation(context);
                 // 判断是否为标签开头
             }
             else if (s[0] === '<') {
@@ -1204,8 +1204,9 @@ var Vue = (function (exports) {
     function parseInterpolation(context) {
         var _a = __read(['{{', '}}'], 2), open = _a[0], close = _a[1];
         advanceBy(context, open.length);
-        var perTrimContent = context.source.indexOf(close, open.length) + '';
-        var content = perTrimContent.trim();
+        var closeIndex = context.source.indexOf(close, open.length);
+        var preTrimContent = parseTextData(context, closeIndex);
+        var content = preTrimContent.trim();
         advanceBy(context, close.length);
         return {
             type: 5 /* NodeTypes.INTERPOLATION */,
@@ -1561,10 +1562,12 @@ var Vue = (function (exports) {
             case 8 /* NodeTypes.COMPOUND_EXPRESSION */:
                 genCompoundExpression(node, context);
                 break;
+            case 1 /* NodeTypes.ELEMENT */:
+                genNode(node.codegenNode, context);
+                break;
         }
     }
     function genText(node, context) {
-        console.log('context就是：', context);
         context.push(JSON.stringify(node.content), node);
     }
     function genExpression(node, context) {
@@ -1632,8 +1635,6 @@ var Vue = (function (exports) {
         transform(ast, Object.assign(options, {
             nodeTransforms: [transformElement, transformText]
         }));
-        console.log(ast);
-        console.log(JSON.stringify(ast));
         return generate(ast);
     }
 
@@ -1647,6 +1648,10 @@ var Vue = (function (exports) {
         return render;
     }
 
+    var toDisplayString = function (str) {
+        return String(str);
+    };
+
     exports.Component = Component;
     exports.Fragment = Fragment;
     exports.Text = Text;
@@ -1659,6 +1664,7 @@ var Vue = (function (exports) {
     exports.reactive = reactive;
     exports.ref = ref;
     exports.render = render;
+    exports.toDisplayString = toDisplayString;
     exports.watch = watch;
 
     Object.defineProperty(exports, '__esModule', { value: true });
