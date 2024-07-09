@@ -8,3 +8,15 @@ export function isText(node) {
 export function getVNodeHelper(ssr: boolean, isComponent: boolean) {
   return ssr || isComponent ? CREATE_VNODE : CREATE_ELEMENT_VNODE
 }
+
+export function getMemoedVNodeCall(node) {
+  return node
+}
+export function createCallExpression(callee, args) {
+  return {
+    type: NodeTypes.JS_CACHE_EXPRESSION,
+    loc: {},
+    callee,
+    arguments: args
+  }
+}

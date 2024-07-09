@@ -1399,10 +1399,12 @@ var Vue = (function (exports) {
     var CREATE_ELEMENT_VNODE = Symbol('createElementVNode');
     var CREATE_VNODE = Symbol('createVNode');
     var TO_DISPLAY_STRING = Symbol('toDisplayString');
+    var CREATE_COMMIT = Symbol('createCommit');
     var helperNameMap = (_a = {},
         _a[CREATE_ELEMENT_VNODE] = 'createElementVNode',
         _a[CREATE_VNODE] = 'createVNode',
         _a[TO_DISPLAY_STRING] = 'toDisplayString',
+        _a[CREATE_COMMIT] = 'createCommit',
         _a);
 
     function transform(root, options) {
@@ -1432,6 +1434,9 @@ var Vue = (function (exports) {
                 var count = context.helpers.get(name) || 0;
                 context.helpers.set(name, count + 1);
                 return name;
+            },
+            replaceNode: function (node) {
+                context.parent.children[context.childIndex] = context.currentNode = node;
             }
         };
         return context;
@@ -1444,16 +1449,32 @@ var Vue = (function (exports) {
         for (var i_1 = 0; i_1 < nodeTransforms.length; i_1++) {
             var onExit = nodeTransforms[i_1](node, context);
             if (onExit) {
-                exitFns.push(onExit);
+                if (onExit instanceof Array) {
+                    exitFns.push.apply(exitFns, __spreadArray([], __read(onExit), false));
+                }
+                else {
+                    exitFns.push(onExit);
+                }
+            }
+            if (!context.currentNode) {
+                return;
+            }
+            else {
+                node = context.currentNode;
             }
         }
         switch (node.type) {
+            case 10 /* NodeTypes.IF_BRANCH */:
+                break;
             case 1 /* NodeTypes.ELEMENT */:
             case 0 /* NodeTypes.ROOT */:
                 traverseChildren(node, context);
                 break;
             case 5 /* NodeTypes.INTERPOLATION */:
                 context.helper(TO_DISPLAY_STRING);
+                break;
+            case 9 /* NodeTypes.IF */:
+                console.log('if');
                 break;
         }
         context.currentNode = node;
@@ -1482,6 +1503,29 @@ var Vue = (function (exports) {
             }
         }
     }
+    // 该函数用于统一处理vue指令
+    function createStructuralDirectiveTransform(name, fn) {
+        var matches = typeof name === 'string'
+            ? function (n) { return n === name; }
+            : function (n) { return name.test(n); };
+        return function (node, context) {
+            if (node.type === 1 /* NodeTypes.ELEMENT */) {
+                var exitFns = [];
+                var props = node.props;
+                for (var i = 0; i < props.length; i++) {
+                    var prop = props[i];
+                    if (prop.type === 7 /* NodeTypes.DIRECTIVE */ && matches(prop.name)) {
+                        props.splice(i, 1);
+                        i--;
+                        var onExit = fn(node, prop, context);
+                        if (onExit)
+                            exitFns.push(onExit);
+                    }
+                }
+                return exitFns;
+            }
+        };
+    }
 
     // 该函数的目的是构造一个表示虚拟节点调用的对象
     function createVNodeCall(context, tag, props, children) {
@@ -1493,6 +1537,17 @@ var Vue = (function (exports) {
             tag: tag,
             props: props,
             children: children
+        };
+    }
+    function createConditionalExpression(test, consquent, alternate, newline) {
+        if (newline === void 0) { newline = true; }
+        return {
+            type: 19 /* NodeTypes.JS_CONDITIONAL_EXPRESSION */,
+            test: test,
+            consquent: consquent,
+            alternate: alternate,
+            newline: newline,
+            loc: {}
         };
     }
 
@@ -1516,6 +1571,17 @@ var Vue = (function (exports) {
     }
     function getVNodeHelper(ssr, isComponent) {
         return ssr || isComponent ? CREATE_VNODE : CREATE_ELEMENT_VNODE;
+    }
+    function getMemoedVNodeCall(node) {
+        return node;
+    }
+    function createCallExpression(callee, args) {
+        return {
+            type: 20 /* NodeTypes.JS_CACHE_EXPRESSION */,
+            loc: {},
+            callee: callee,
+            arguments: args
+        };
     }
 
     // 将相邻的文本节点和表达式合并为一个表达式
@@ -1713,11 +1779,91 @@ var Vue = (function (exports) {
         }
     }
 
+    var transformIf = createStructuralDirectiveTransform(/^(if|else|else-if)$/, function (node, dir, context) {
+        return processIf(node, dir, context, function (ifNode, branch, isRoot) {
+            var key = 0;
+            return function () {
+                if (isRoot) {
+                    ifNode.codegenNode = createCodegenNodeForBranch(branch, key, context);
+                }
+            };
+        });
+    });
+    function processIf(node, dir, context, processCodegen) {
+        if (dir.name === 'if') {
+            var branch = createIfBranch(node, dir);
+            var ifNode = {
+                type: 9 /* NodeTypes.IF */,
+                loc: {},
+                branches: [branch]
+            };
+            context.replaceNode(ifNode);
+            if (processCodegen) {
+                return processCodegen(ifNode, branch, true);
+            }
+        }
+    }
+    function createIfBranch(node, dir) {
+        return {
+            type: 10 /* NodeTypes.IF_BRANCH */,
+            loc: {},
+            condition: dir.exp,
+            children: [node]
+        };
+    }
+    function createCodegenNodeForBranch(branch, keyIndex, context) {
+        if (branch.condition) {
+            return createConditionalExpression(branch.condition, createChildrenCodegenNode(branch, keyIndex), createCallExpression(context.helper(CREATE_COMMIT), ['"v-if"', 'true']));
+        }
+        else {
+            return createChildrenCodegenNode(branch, keyIndex);
+        }
+    }
+    function createChildrenCodegenNode(branch, keyIndex) {
+        var keyProperty = createObjectProperty("key", createSimpleExpression("".concat(keyIndex), false));
+        var children = branch.children;
+        var firstChild = children[0];
+        var ret = firstChild.codegenNode;
+        var vnodeCall = getMemoedVNodeCall(ret);
+        injectProp(vnodeCall, keyProperty);
+    }
+    function createObjectProperty(key, value) {
+        return {
+            type: 16 /* NodeTypes.JS_PROPERTY */,
+            loc: {},
+            key: typeof key === 'string' ? createSimpleExpression(key, true) : key,
+            value: value
+        };
+    }
+    function createSimpleExpression(content, isStatic) {
+        return {
+            type: 4 /* NodeTypes.SIMPLE_EXPRESSION */,
+            loc: {},
+            content: content,
+            isStatic: isStatic
+        };
+    }
+    function injectProp(node, prop) {
+        var propsWithInjection;
+        var props = node.type === 13 /* NodeTypes.VNODE_CALL */ ? node.props : node.arguments[2];
+        if (props === null || typeof props === 'string') {
+            propsWithInjection = createobjectExpression([prop]);
+        }
+        node.props = propsWithInjection;
+    }
+    function createobjectExpression(properties) {
+        return {
+            type: 15 /* NodeTypes.JS_OBJECT_EXPRESSION */,
+            loc: {},
+            properties: properties
+        };
+    }
+
     function baseCompile(template, options) {
         if (options === void 0) { options = {}; }
         var ast = baseParse(template);
         transform(ast, Object.assign(options, {
-            nodeTransforms: [transformElement, transformText]
+            nodeTransforms: [transformElement, transformText, transformIf]
         }));
         console.log(ast);
         return generate(ast);

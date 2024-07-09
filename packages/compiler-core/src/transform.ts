@@ -10,6 +10,7 @@ export interface TransformContext {
   helpers: Map<symbol, number>
   helper<T extends symbol>(name: T): T
   nodeTransforms: any[]
+  replaceNode(node): void
 }
 export function transform(root, options) {
   const context = createTransformContext(root, options)
@@ -38,6 +39,9 @@ export function createTransformContext(root, { nodeTransforms = [] }) {
       const count = context.helpers.get(name) || 0
       context.helpers.set(name, count + 1)
       return name
+    },
+    replaceNode(node) {
+      context.parent!.children[context.childIndex] = context.currentNode = node
     }
   }
   return context
@@ -51,16 +55,31 @@ export function traverseNode(node, context: TransformContext) {
   for (let i = 0; i < nodeTransforms.length; i++) {
     const onExit = nodeTransforms[i](node, context)
     if (onExit) {
-      exitFns.push(onExit)
+      if (onExit instanceof Array) {
+        exitFns.push(...onExit)
+      } else {
+        exitFns.push(onExit)
+      }
+    }
+
+    if (!context.currentNode) {
+      return
+    } else {
+      node = context.currentNode
     }
   }
   switch (node.type) {
+    case NodeTypes.IF_BRANCH:
+      break
     case NodeTypes.ELEMENT:
     case NodeTypes.ROOT:
       traverseChildren(node, context)
       break
     case NodeTypes.INTERPOLATION:
       context.helper(TO_DISPLAY_STRING)
+      break
+    case NodeTypes.IF:
+      console.log('if')
       break
   }
   context.currentNode = node
@@ -87,6 +106,31 @@ function createRootCodegen(root) {
       // 这一步意味着编译器将跳过创建额外的包裹元素，直接使用子元素的代码生成节点作为输出
       // 从而简化渲染逻辑和提高性能
       root.codegenNode = child.codegenNode
+    }
+  }
+}
+
+// 该函数用于统一处理vue指令
+export function createStructuralDirectiveTransform(name: string | RegExp, fn) {
+  const matches =
+    typeof name === 'string'
+      ? (n: string) => n === name
+      : (n: string) => name.test(n)
+
+  return (node, context) => {
+    if (node.type === NodeTypes.ELEMENT) {
+      const exitFns: any = []
+      const { props } = node
+      for (let i = 0; i < props.length; i++) {
+        const prop = props[i]
+        if (prop.type === NodeTypes.DIRECTIVE && matches(prop.name)) {
+          props.splice(i, 1)
+          i--
+          const onExit = fn(node, prop, context)
+          if (onExit) exitFns.push(onExit)
+        }
+      }
+      return exitFns
     }
   }
 }
