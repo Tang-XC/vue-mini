@@ -97,6 +97,10 @@ function parseTag(context: ParserContext, type: TagType) {
   //对模板进行解析处理
   advanceBy(context, match[0].length)
 
+  // 属性和指令的处理
+  advanceSpaces(context)
+  let props = parseAttributes(context, type)
+
   // --- 处理标签结束部分 ---
   // 判断是否为自关闭标签，例如<img/>
   let isSelfClosing = startsWith(context.source, '/>')
@@ -111,9 +115,92 @@ function parseTag(context: ParserContext, type: TagType) {
     tag,
     tagType: tagType,
     children: [],
-    props: []
+    props
   }
 }
+
+// 该函数用于解析HTML标签的属性，并返回一个属性数组
+function parseAttributes(context, type) {
+  const props: any[] = []
+  const attributeNames = new Set<string>()
+  while (
+    context.source.length > 0 &&
+    !startsWith(context.source, '>') &&
+    !startsWith(context.source, '/>')
+  ) {
+    const attr = parseAttribute(context, attributeNames)
+    if (type === TagType.Start) {
+      props.push(attr)
+    }
+    advanceSpaces(context)
+  }
+  return props
+}
+
+function parseAttribute(context: ParserContext, nameSet: Set<string>) {
+  // 获取属性名称
+  const match = /^[^\t\r\n\f />][^\t\r\n\f />=]*/.exec(context.source)!
+  const name = match[0]
+  // 添加当前的处理属性
+  nameSet.add(name)
+  advanceBy(context, name.length)
+  let value: any = undefined
+  if (/^[\t\r\n\f ]*=/.test(context.source)) {
+    advanceSpaces(context)
+    advanceBy(context, 1)
+    advanceSpaces(context)
+    parseAttributeValue(context)
+  }
+  if (/^(v-[A-Za-z0-9-]|:|\.|@|#)/.test(name)) {
+    const match =
+      /(?:^v-([a-z0-9-]+))?(?:(?::|^\.|^@|^#)(\[[^\]]+\]|[^\.]+))?(.+)?$/i.exec(
+        name
+      )!
+    let dirName = match[1]
+    return {
+      type: NodeTypes.DIRECTIVE,
+      name: dirName,
+      exp: value && {
+        type: NodeTypes.SIMPLE_EXPRESSION,
+        content: value.content,
+        isStatic: false,
+        loc: {}
+      },
+      art: undefined,
+      modifiers: undefined,
+      loc: {}
+    }
+  }
+  return {
+    type: NodeTypes.ATTRIBUTE,
+    name,
+    value: value && {
+      type: NodeTypes.TEXT,
+      content: value.content,
+      loc: {}
+    },
+    loc: {}
+  }
+}
+
+function parseAttributeValue(context: ParserContext) {
+  let content = ''
+  const quote = context.source[0]
+  advanceBy(context, 1)
+  const endIndex = context.source.indexOf(quote)
+  if (endIndex === -1) {
+    content = parseTextData(context, context.source.length)
+  } else {
+    content = parseTextData(context, endIndex)
+    advanceBy(context, 1)
+  }
+  return {
+    content,
+    isQuoted: true,
+    loc: {}
+  }
+}
+
 // 该函数的功能是解析文本内容，并返回一个包含文本类型和内容的对象。
 function parseText(context: ParserContext) {
   const endTokens = ['<', '{{']
@@ -136,13 +223,17 @@ function parseTextData(context: ParserContext, length: number) {
   advanceBy(context, length)
   return rawText
 }
-
-function pushNode(nodes, node) {
-  nodes.push(node)
-}
 function advanceBy(context: ParserContext, numberOfCharacters: number) {
   const { source } = context
   context.source = source.slice(numberOfCharacters)
+}
+
+// 该函数用于清理输入字符串，跳过不重要的空白字符
+function advanceSpaces(context: ParserContext) {
+  const match = /^[\t\r\n\f ]+/.exec(context.source)
+  if (match) {
+    advanceBy(context, match[0].length)
+  }
 }
 
 function startsWith(source: string, searchString: string) {
@@ -163,4 +254,7 @@ function isEnd(context: ParserContext, ancestors: any[]) {
     }
   }
   return !s
+}
+function pushNode(nodes, node) {
+  nodes.push(node)
 }

@@ -10,14 +10,14 @@
   <div id="app"></div>
   <script>
     const {compile,h,render} = Vue
-    const template = `<div>Hello world {{ msg }} </div>`
+    const template = `<div v-if="isShow">Hello world {{ msg }} </div>`
     const renderFn = compile(template)
-    console.log(renderFn)
 
     const component = {
       data(){
         return {
-          msg: 'hey hey hey'
+          msg: 'hey hey hey',
+          isShow:true,
         }
       },
       render:renderFn

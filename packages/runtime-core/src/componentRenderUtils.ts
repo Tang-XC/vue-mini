@@ -15,7 +15,6 @@ export function renderComponentRoot(instance) {
   let result
   try {
     if (vnode.shapeFlag & ShapeFlags.STATEFUL_COMPONENT) {
-      console.log(data)
       result = normalizeVnode(render!.call(data, data))
     }
   } catch (error) {

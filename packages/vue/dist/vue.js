@@ -510,7 +510,6 @@ var Vue = (function (exports) {
         var result;
         try {
             if (vnode.shapeFlag & 4 /* ShapeFlags.STATEFUL_COMPONENT */) {
-                console.log(data);
                 result = normalizeVnode(render.call(data, data));
             }
         }
@@ -1220,7 +1219,7 @@ var Vue = (function (exports) {
     // 处理标签
     function parseElement(context, ancestors) {
         // 先处理开始标签
-        var element = parseTag(context);
+        var element = parseTag(context, 0 /* TagType.Start */);
         // 添加自节点
         ancestors.push(element);
         // 递归触发 parseChildren
@@ -1230,7 +1229,7 @@ var Vue = (function (exports) {
         element.children = children;
         // 最后处理结束标签
         if (startsWithEndTagOpen(context.source, element.tag)) {
-            parseTag(context);
+            parseTag(context, 1 /* TagType.End */);
         }
         // 整个标签处理完成
         return element;
@@ -1242,6 +1241,9 @@ var Vue = (function (exports) {
         var tag = match[1];
         //对模板进行解析处理
         advanceBy(context, match[0].length);
+        // 属性和指令的处理
+        advanceSpaces(context);
+        var props = parseAttributes(context, type);
         // --- 处理标签结束部分 ---
         // 判断是否为自关闭标签，例如<img/>
         var isSelfClosing = startsWith(context.source, '/>');
@@ -1254,7 +1256,82 @@ var Vue = (function (exports) {
             tag: tag,
             tagType: tagType,
             children: [],
-            props: []
+            props: props
+        };
+    }
+    // 该函数用于解析HTML标签的属性，并返回一个属性数组
+    function parseAttributes(context, type) {
+        var props = [];
+        var attributeNames = new Set();
+        while (context.source.length > 0 &&
+            !startsWith(context.source, '>') &&
+            !startsWith(context.source, '/>')) {
+            var attr = parseAttribute(context, attributeNames);
+            if (type === 0 /* TagType.Start */) {
+                props.push(attr);
+            }
+            advanceSpaces(context);
+        }
+        return props;
+    }
+    function parseAttribute(context, nameSet) {
+        // 获取属性名称
+        var match = /^[^\t\r\n\f />][^\t\r\n\f />=]*/.exec(context.source);
+        var name = match[0];
+        // 添加当前的处理属性
+        nameSet.add(name);
+        advanceBy(context, name.length);
+        var value = undefined;
+        if (/^[\t\r\n\f ]*=/.test(context.source)) {
+            advanceSpaces(context);
+            advanceBy(context, 1);
+            advanceSpaces(context);
+            parseAttributeValue(context);
+        }
+        if (/^(v-[A-Za-z0-9-]|:|\.|@|#)/.test(name)) {
+            var match_1 = /(?:^v-([a-z0-9-]+))?(?:(?::|^\.|^@|^#)(\[[^\]]+\]|[^\.]+))?(.+)?$/i.exec(name);
+            var dirName = match_1[1];
+            return {
+                type: 7 /* NodeTypes.DIRECTIVE */,
+                name: dirName,
+                exp: value && {
+                    type: 4 /* NodeTypes.SIMPLE_EXPRESSION */,
+                    content: value.content,
+                    isStatic: false,
+                    loc: {}
+                },
+                art: undefined,
+                modifiers: undefined,
+                loc: {}
+            };
+        }
+        return {
+            type: 6 /* NodeTypes.ATTRIBUTE */,
+            name: name,
+            value: value && {
+                type: 2 /* NodeTypes.TEXT */,
+                content: value.content,
+                loc: {}
+            },
+            loc: {}
+        };
+    }
+    function parseAttributeValue(context) {
+        var content = '';
+        var quote = context.source[0];
+        advanceBy(context, 1);
+        var endIndex = context.source.indexOf(quote);
+        if (endIndex === -1) {
+            content = parseTextData(context, context.source.length);
+        }
+        else {
+            content = parseTextData(context, endIndex);
+            advanceBy(context, 1);
+        }
+        return {
+            content: content,
+            isQuoted: true,
+            loc: {}
         };
     }
     // 该函数的功能是解析文本内容，并返回一个包含文本类型和内容的对象。
@@ -1279,12 +1356,16 @@ var Vue = (function (exports) {
         advanceBy(context, length);
         return rawText;
     }
-    function pushNode(nodes, node) {
-        nodes.push(node);
-    }
     function advanceBy(context, numberOfCharacters) {
         var source = context.source;
         context.source = source.slice(numberOfCharacters);
+    }
+    // 该函数用于清理输入字符串，跳过不重要的空白字符
+    function advanceSpaces(context) {
+        var match = /^[\t\r\n\f ]+/.exec(context.source);
+        if (match) {
+            advanceBy(context, match[0].length);
+        }
     }
     function startsWith(source, searchString) {
         return source.startsWith(searchString);
@@ -1304,6 +1385,9 @@ var Vue = (function (exports) {
             }
         }
         return !s;
+    }
+    function pushNode(nodes, node) {
+        nodes.push(node);
     }
 
     function isSingleElementRoot(root, child) {
@@ -1635,6 +1719,7 @@ var Vue = (function (exports) {
         transform(ast, Object.assign(options, {
             nodeTransforms: [transformElement, transformText]
         }));
+        console.log(ast);
         return generate(ast);
     }
 
