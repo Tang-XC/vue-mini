@@ -55,13 +55,14 @@ function createIfBranch(node, dir) {
 
 function createCodegenNodeForBranch(
   branch,
-  keyIndex,
+  keyIndex: number,
   context: TransformContext
 ) {
   if (branch.condition) {
     return createConditionalExpression(
       branch.condition,
       createChildrenCodegenNode(branch, keyIndex),
+      // 以注释的形式展示 v-if.
       createCallExpression(context.helper(CREATE_COMMENT), ['"v-if"', 'true'])
     )
   } else {
@@ -75,9 +76,12 @@ function createChildrenCodegenNode(branch, keyIndex: number) {
   )
   const { children } = branch
   const firstChild = children[0]
+
   const ret = firstChild.codegenNode
   const vnodeCall = getMemoedVNodeCall(ret)
+  // 填充 props
   injectProp(vnodeCall, keyProperty)
+  return ret
 }
 function createObjectProperty(key, value) {
   return {

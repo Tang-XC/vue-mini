@@ -453,6 +453,9 @@ var Vue = (function (exports) {
     function isSameVnodeType(n1, n2) {
         return n1.type === n2.type && n1.key === n2.key;
     }
+    function createCommentVNode(text) {
+        return createVNode(Comment, null, text);
+    }
 
     // 只有type
     // h('div')
@@ -1436,9 +1439,7 @@ var Vue = (function (exports) {
                 return name;
             },
             replaceNode: function (node) {
-                console.log('before', JSON.stringify(context.parent));
                 context.parent.children[context.childIndex] = context.currentNode = node;
-                console.log('after', JSON.stringify(context.parent));
             }
         };
         return context;
@@ -1542,12 +1543,12 @@ var Vue = (function (exports) {
             children: children
         };
     }
-    function createConditionalExpression(test, consquent, alternate, newline) {
+    function createConditionalExpression(test, consequent, alternate, newline) {
         if (newline === void 0) { newline = true; }
         return {
             type: 19 /* NodeTypes.JS_CONDITIONAL_EXPRESSION */,
             test: test,
-            consquent: consquent,
+            consequent: consequent,
             alternate: alternate,
             newline: newline,
             loc: {}
@@ -1580,7 +1581,7 @@ var Vue = (function (exports) {
     }
     function createCallExpression(callee, args) {
         return {
-            type: 20 /* NodeTypes.JS_CACHE_EXPRESSION */,
+            type: 14 /* NodeTypes.JS_CALL_EXPRESSION */,
             loc: {},
             callee: callee,
             arguments: args
@@ -1700,6 +1701,10 @@ var Vue = (function (exports) {
     }
     function genNode(node, context) {
         switch (node.type) {
+            case 1 /* NodeTypes.ELEMENT */:
+            case 9 /* NodeTypes.IF */:
+                genNode(node.codegenNode, context);
+                break;
             case 13 /* NodeTypes.VNODE_CALL */:
                 genVNodeCall(node, context);
                 break;
@@ -1717,6 +1722,12 @@ var Vue = (function (exports) {
                 break;
             case 1 /* NodeTypes.ELEMENT */:
                 genNode(node.codegenNode, context);
+                break;
+            case 14 /* NodeTypes.JS_CALL_EXPRESSION */:
+                genCallExpression(node, context);
+                break;
+            case 19 /* NodeTypes.JS_CONDITIONAL_EXPRESSION */:
+                genConditionalExpression(node, context);
                 break;
         }
     }
@@ -1781,6 +1792,54 @@ var Vue = (function (exports) {
             }
         }
     }
+    function genCallExpression(node, context) {
+        var push = context.push, helper = context.helper;
+        var callee = typeof node.callee === 'string' ? node.callee : helper(node.callee);
+        push(callee + "(", node);
+        genNodeList(node.arguments, context);
+        push(")");
+    }
+    function genConditionalExpression(node, context) {
+        var test = node.test, consequent = node.consequent, alternate = node.alternate, needNewline = node.newline;
+        var push = context.push, indent = context.indent, deindent = context.deindent, newline = context.newline;
+        if (test.type === 4 /* NodeTypes.SIMPLE_EXPRESSION */) {
+            // 写入变量
+            genExpression(test, context);
+        }
+        // 换行
+        needNewline && indent();
+        // 缩进++
+        context.indentLevel++;
+        // 写入空格
+        needNewline || push(" ");
+        // 写入 ？
+        push("? ");
+        // 写入满足条件的处理逻辑
+        genNode(consequent, context);
+        // 缩进 --
+        context.indentLevel--;
+        // 换行
+        needNewline && newline();
+        // 写入空格
+        needNewline || push(" ");
+        // 写入:
+        push(": ");
+        // 判断 else 的类型是否也为 JS_CONDITIONAL_EXPRESSION
+        var isNested = alternate.type === 19 /* NodeTypes.JS_CONDITIONAL_EXPRESSION */;
+        // 不是则缩进++
+        if (!isNested) {
+            context.indentLevel++;
+        }
+        // 写入 else （不满足条件）的处理逻辑
+        console.log(alternate);
+        genNode(alternate, context);
+        // 缩进--
+        if (!isNested) {
+            context.indentLevel--;
+        }
+        // 控制缩进 + 换行
+        needNewline && deindent();
+    }
 
     var transformIf = createStructuralDirectiveTransform(/^(if|else|else-if)$/, function (node, dir, context) {
         return processIf(node, dir, context, function (ifNode, branch, isRoot) {
@@ -1816,7 +1875,9 @@ var Vue = (function (exports) {
     }
     function createCodegenNodeForBranch(branch, keyIndex, context) {
         if (branch.condition) {
-            return createConditionalExpression(branch.condition, createChildrenCodegenNode(branch, keyIndex), createCallExpression(context.helper(CREATE_COMMENT), ['"v-if"', 'true']));
+            return createConditionalExpression(branch.condition, createChildrenCodegenNode(branch, keyIndex), 
+            // 以注释的形式展示 v-if.
+            createCallExpression(context.helper(CREATE_COMMENT), ['"v-if"', 'true']));
         }
         else {
             return createChildrenCodegenNode(branch, keyIndex);
@@ -1828,7 +1889,9 @@ var Vue = (function (exports) {
         var firstChild = children[0];
         var ret = firstChild.codegenNode;
         var vnodeCall = getMemoedVNodeCall(ret);
+        // 填充 props
         injectProp(vnodeCall, keyProperty);
+        return ret;
     }
     function createObjectProperty(key, value) {
         return {
@@ -1865,7 +1928,6 @@ var Vue = (function (exports) {
     function baseCompile(template, options) {
         if (options === void 0) { options = {}; }
         var ast = baseParse(template);
-        console.log(JSON.stringify(ast));
         transform(ast, Object.assign(options, {
             nodeTransforms: [transformElement, transformText, transformIf]
         }));
@@ -1879,6 +1941,7 @@ var Vue = (function (exports) {
 
     function compileToFunction(template, options) {
         var code = compile(template, options).code;
+        console.log(code);
         var render = new Function(code)();
         return render;
     }
@@ -1892,6 +1955,7 @@ var Vue = (function (exports) {
     exports.Text = Text;
     exports.compile = compileToFunction;
     exports.computed = computed;
+    exports.createCommentVNode = createCommentVNode;
     exports.createElementVNode = createVNode;
     exports.effect = effect;
     exports.h = h;

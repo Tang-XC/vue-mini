@@ -56,14 +56,14 @@ export function createVNodeCall(context, tag, props?, children?) {
 
 export function createConditionalExpression(
   test,
-  consquent,
+  consequent,
   alternate,
   newline = true
 ) {
   return {
     type: NodeTypes.JS_CONDITIONAL_EXPRESSION,
     test,
-    consquent,
+    consequent,
     alternate,
     newline,
     loc: {}

@@ -14,7 +14,7 @@ export function getMemoedVNodeCall(node) {
 }
 export function createCallExpression(callee, args) {
   return {
-    type: NodeTypes.JS_CACHE_EXPRESSION,
+    type: NodeTypes.JS_CALL_EXPRESSION,
     loc: {},
     callee,
     arguments: args

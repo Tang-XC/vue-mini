@@ -12,11 +12,10 @@
     const {compile,h,render} = Vue
     const template = `<div>Hello world <h1 v-if="isShow">你好，世界</h1> </div>`
     const renderFn = compile(template)
-
     const component = {
       data(){
         return {
-          isShow:true,
+          isShow:false,
         }
       },
       render:renderFn

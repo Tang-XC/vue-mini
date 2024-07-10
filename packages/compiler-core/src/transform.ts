@@ -41,9 +41,7 @@ export function createTransformContext(root, { nodeTransforms = [] }) {
       return name
     },
     replaceNode(node) {
-      console.log('before', JSON.stringify(context.parent))
       context.parent!.children[context.childIndex] = context.currentNode = node
-      console.log('after', JSON.stringify(context.parent))
     }
   }
   return context
