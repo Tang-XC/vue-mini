@@ -41,7 +41,9 @@ export function createTransformContext(root, { nodeTransforms = [] }) {
       return name
     },
     replaceNode(node) {
+      console.log('before', JSON.stringify(context.parent))
       context.parent!.children[context.childIndex] = context.currentNode = node
+      console.log('after', JSON.stringify(context.parent))
     }
   }
   return context
@@ -70,7 +72,6 @@ export function traverseNode(node, context: TransformContext) {
   }
   switch (node.type) {
     case NodeTypes.IF_BRANCH:
-      break
     case NodeTypes.ELEMENT:
     case NodeTypes.ROOT:
       traverseChildren(node, context)
@@ -79,7 +80,9 @@ export function traverseNode(node, context: TransformContext) {
       context.helper(TO_DISPLAY_STRING)
       break
     case NodeTypes.IF:
-      console.log('if')
+      for (let i = 0; i < node.branches.length; i++) {
+        traverseNode(node.branches[i], context)
+      }
       break
   }
   context.currentNode = node
@@ -119,8 +122,8 @@ export function createStructuralDirectiveTransform(name: string | RegExp, fn) {
 
   return (node, context) => {
     if (node.type === NodeTypes.ELEMENT) {
-      const exitFns: any = []
       const { props } = node
+      const exitFns: any = []
       for (let i = 0; i < props.length; i++) {
         const prop = props[i]
         if (prop.type === NodeTypes.DIRECTIVE && matches(prop.name)) {

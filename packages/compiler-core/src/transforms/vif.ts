@@ -1,5 +1,5 @@
 import { NodeTypes, createConditionalExpression } from '../ast'
-import { CREATE_COMMIT } from '../runtimeHelpers'
+import { CREATE_COMMENT } from '../runtimeHelpers'
 import { TransformContext } from '../transform'
 import { createStructuralDirectiveTransform } from '../transform'
 import {
@@ -33,7 +33,7 @@ export function processIf(
     const branch = createIfBranch(node, dir)
     const ifNode = {
       type: NodeTypes.IF,
-      loc: {},
+      loc: node.loc,
       branches: [branch]
     }
     context.replaceNode(ifNode)
@@ -47,7 +47,7 @@ export function processIf(
 function createIfBranch(node, dir) {
   return {
     type: NodeTypes.IF_BRANCH,
-    loc: {},
+    loc: node.loc,
     condition: dir.exp,
     children: [node]
   }
@@ -62,7 +62,7 @@ function createCodegenNodeForBranch(
     return createConditionalExpression(
       branch.condition,
       createChildrenCodegenNode(branch, keyIndex),
-      createCallExpression(context.helper(CREATE_COMMIT), ['"v-if"', 'true'])
+      createCallExpression(context.helper(CREATE_COMMENT), ['"v-if"', 'true'])
     )
   } else {
     return createChildrenCodegenNode(branch, keyIndex)
@@ -77,7 +77,6 @@ function createChildrenCodegenNode(branch, keyIndex: number) {
   const firstChild = children[0]
   const ret = firstChild.codegenNode
   const vnodeCall = getMemoedVNodeCall(ret)
-
   injectProp(vnodeCall, keyProperty)
 }
 function createObjectProperty(key, value) {

@@ -6,12 +6,13 @@ import { generate } from './codegen'
 import { transformIf } from './transforms/vif'
 export function baseCompile(template: string, options = {}) {
   const ast = baseParse(template)
+  console.log(JSON.stringify(ast))
   transform(
     ast,
     Object.assign(options, {
       nodeTransforms: [transformElement, transformText, transformIf]
     })
   )
-  console.log(ast)
+  console.log('输出结果', ast)
   return generate(ast)
 }

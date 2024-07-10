@@ -149,7 +149,7 @@ function parseAttribute(context: ParserContext, nameSet: Set<string>) {
     advanceSpaces(context)
     advanceBy(context, 1)
     advanceSpaces(context)
-    parseAttributeValue(context)
+    value = parseAttributeValue(context)
   }
   if (/^(v-[A-Za-z0-9-]|:|\.|@|#)/.test(name)) {
     const match =

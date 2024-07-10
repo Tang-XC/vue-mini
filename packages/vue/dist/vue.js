@@ -1286,7 +1286,7 @@ var Vue = (function (exports) {
             advanceSpaces(context);
             advanceBy(context, 1);
             advanceSpaces(context);
-            parseAttributeValue(context);
+            value = parseAttributeValue(context);
         }
         if (/^(v-[A-Za-z0-9-]|:|\.|@|#)/.test(name)) {
             var match_1 = /(?:^v-([a-z0-9-]+))?(?:(?::|^\.|^@|^#)(\[[^\]]+\]|[^\.]+))?(.+)?$/i.exec(name);
@@ -1399,12 +1399,12 @@ var Vue = (function (exports) {
     var CREATE_ELEMENT_VNODE = Symbol('createElementVNode');
     var CREATE_VNODE = Symbol('createVNode');
     var TO_DISPLAY_STRING = Symbol('toDisplayString');
-    var CREATE_COMMIT = Symbol('createCommit');
+    var CREATE_COMMENT = Symbol('createCommentVNode');
     var helperNameMap = (_a = {},
         _a[CREATE_ELEMENT_VNODE] = 'createElementVNode',
         _a[CREATE_VNODE] = 'createVNode',
         _a[TO_DISPLAY_STRING] = 'toDisplayString',
-        _a[CREATE_COMMIT] = 'createCommit',
+        _a[CREATE_COMMENT] = 'createCommentVNode',
         _a);
 
     function transform(root, options) {
@@ -1436,7 +1436,9 @@ var Vue = (function (exports) {
                 return name;
             },
             replaceNode: function (node) {
+                console.log('before', JSON.stringify(context.parent));
                 context.parent.children[context.childIndex] = context.currentNode = node;
+                console.log('after', JSON.stringify(context.parent));
             }
         };
         return context;
@@ -1465,7 +1467,6 @@ var Vue = (function (exports) {
         }
         switch (node.type) {
             case 10 /* NodeTypes.IF_BRANCH */:
-                break;
             case 1 /* NodeTypes.ELEMENT */:
             case 0 /* NodeTypes.ROOT */:
                 traverseChildren(node, context);
@@ -1474,7 +1475,9 @@ var Vue = (function (exports) {
                 context.helper(TO_DISPLAY_STRING);
                 break;
             case 9 /* NodeTypes.IF */:
-                console.log('if');
+                for (var i_2 = 0; i_2 < node.branches.length; i_2++) {
+                    traverseNode(node.branches[i_2], context);
+                }
                 break;
         }
         context.currentNode = node;
@@ -1510,8 +1513,8 @@ var Vue = (function (exports) {
             : function (n) { return name.test(n); };
         return function (node, context) {
             if (node.type === 1 /* NodeTypes.ELEMENT */) {
-                var exitFns = [];
                 var props = node.props;
+                var exitFns = [];
                 for (var i = 0; i < props.length; i++) {
                     var prop = props[i];
                     if (prop.type === 7 /* NodeTypes.DIRECTIVE */ && matches(prop.name)) {
@@ -1794,7 +1797,7 @@ var Vue = (function (exports) {
             var branch = createIfBranch(node, dir);
             var ifNode = {
                 type: 9 /* NodeTypes.IF */,
-                loc: {},
+                loc: node.loc,
                 branches: [branch]
             };
             context.replaceNode(ifNode);
@@ -1806,14 +1809,14 @@ var Vue = (function (exports) {
     function createIfBranch(node, dir) {
         return {
             type: 10 /* NodeTypes.IF_BRANCH */,
-            loc: {},
+            loc: node.loc,
             condition: dir.exp,
             children: [node]
         };
     }
     function createCodegenNodeForBranch(branch, keyIndex, context) {
         if (branch.condition) {
-            return createConditionalExpression(branch.condition, createChildrenCodegenNode(branch, keyIndex), createCallExpression(context.helper(CREATE_COMMIT), ['"v-if"', 'true']));
+            return createConditionalExpression(branch.condition, createChildrenCodegenNode(branch, keyIndex), createCallExpression(context.helper(CREATE_COMMENT), ['"v-if"', 'true']));
         }
         else {
             return createChildrenCodegenNode(branch, keyIndex);
@@ -1862,10 +1865,11 @@ var Vue = (function (exports) {
     function baseCompile(template, options) {
         if (options === void 0) { options = {}; }
         var ast = baseParse(template);
+        console.log(JSON.stringify(ast));
         transform(ast, Object.assign(options, {
             nodeTransforms: [transformElement, transformText, transformIf]
         }));
-        console.log(ast);
+        console.log('输出结果', ast);
         return generate(ast);
     }
 
