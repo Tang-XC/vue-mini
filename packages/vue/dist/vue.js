@@ -513,6 +513,7 @@ var Vue = (function (exports) {
         var result;
         try {
             if (vnode.shapeFlag & 4 /* ShapeFlags.STATEFUL_COMPONENT */) {
+                console.log(data);
                 result = normalizeVnode(render.call(data, data));
             }
         }
@@ -536,6 +537,7 @@ var Vue = (function (exports) {
     var onMounted = createHook("m" /* LifecycleHooks.MOUNTED */);
 
     var uid = 0;
+    var compile$1 = null;
     function createComponentInstance(vnode) {
         var instance = {
             uid: uid++,
@@ -576,10 +578,25 @@ var Vue = (function (exports) {
     }
     function finishComponentSetup(instance) {
         var Component = instance.type;
+        // 组件不存在 render 时，才需要重新赋值
         if (!instance.render) {
+            // 存在编辑器，并且组件中不包含 render 函数，同时包含 template 模板，则直接使用编辑器进行编辑，得到 render 函数
+            if (compile$1 && !Component.render) {
+                if (Component.template) {
+                    // 这里就是 runtime 模块和 compile 模块结合点
+                    var template = Component.template;
+                    Component.render = compile$1(template);
+                }
+            }
+            // 为 render 赋值
             instance.render = Component.render;
         }
+        // 改变 options 中的 this 指向
         applyOptions(instance);
+    }
+    function registerRuntimeComiler(_compile) {
+        console.log(_compile);
+        compile$1 = _compile;
     }
     function applyOptions(instance) {
         var _a = instance.type, dataOptions = _a.data, beforeCreate = _a.beforeCreate, created = _a.created, beforeMount = _a.beforeMount, mounted = _a.mounted;
@@ -606,6 +623,21 @@ var Vue = (function (exports) {
     }
     function callHook(hook, proxy) {
         hook.call(proxy);
+    }
+
+    function createAppAPI(render) {
+        return function createApp(rootComponent, rootProps) {
+            if (rootProps === void 0) { rootProps = null; }
+            var app = {
+                _component: rootComponent,
+                _container: null,
+                mount: function (rootContainer) {
+                    var vnode = createVNode(rootComponent, rootProps, null);
+                    render(vnode, rootContainer);
+                }
+            };
+            return app;
+        };
     }
 
     // 创建renderer
@@ -965,7 +997,8 @@ var Vue = (function (exports) {
             container._vnode = vnode;
         };
         return {
-            render: render
+            render: render,
+            createApp: createAppAPI(render)
         };
     }
     // 获取最长递增子序列
@@ -1159,6 +1192,31 @@ var Vue = (function (exports) {
         }
         (_a = ensureRenderer()).render.apply(_a, __spreadArray([], __read(args), false));
     };
+    var createApp = function () {
+        var _a;
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i] = arguments[_i];
+        }
+        var app = (_a = ensureRenderer()).createApp.apply(_a, __spreadArray([], __read(args), false));
+        var mount = app.mount;
+        app.mount = function (containerOrSelector) {
+            var container = normalizeContainer(containerOrSelector);
+            if (!container) {
+                console.error('容器必须存在');
+                return;
+            }
+            mount(container);
+        };
+        return app;
+    };
+    function normalizeContainer(container) {
+        if (typeof container === 'string') {
+            var res = document.querySelector(container);
+            return res;
+        }
+        return container;
+    }
 
     function createParserContext(content) {
         return {
@@ -1941,10 +1999,10 @@ var Vue = (function (exports) {
 
     function compileToFunction(template, options) {
         var code = compile(template, options).code;
-        console.log(code);
         var render = new Function(code)();
         return render;
     }
+    registerRuntimeComiler(compileToFunction);
 
     var toDisplayString = function (str) {
         return String(str);
@@ -1955,6 +2013,7 @@ var Vue = (function (exports) {
     exports.Text = Text;
     exports.compile = compileToFunction;
     exports.computed = computed;
+    exports.createApp = createApp;
     exports.createCommentVNode = createCommentVNode;
     exports.createElementVNode = createVNode;
     exports.effect = effect;

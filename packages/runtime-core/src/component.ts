@@ -2,6 +2,7 @@ import { reactive } from '@vue/reactivity'
 import { onBeforeMount, onMounted } from './apiLifecycle'
 
 let uid = 0
+let compile: any = null
 export const enum LifecycleHooks {
   BEFORE_CREATE = 'bc',
   CREATED = 'c',
@@ -48,10 +49,26 @@ function setupStatefulComponent(instance) {
 }
 export function finishComponentSetup(instance) {
   const Component = instance.type
+  // 组件不存在 render 时，才需要重新赋值
   if (!instance.render) {
+    // 存在编辑器，并且组件中不包含 render 函数，同时包含 template 模板，则直接使用编辑器进行编辑，得到 render 函数
+    if (compile && !Component.render) {
+      if (Component.template) {
+        // 这里就是 runtime 模块和 compile 模块结合点
+        const template = Component.template
+        Component.render = compile(template)
+      }
+    }
+    // 为 render 赋值
     instance.render = Component.render
   }
+
+  // 改变 options 中的 this 指向
   applyOptions(instance)
+}
+export function registerRuntimeComiler(_compile: any) {
+  console.log(_compile)
+  compile = _compile
 }
 function applyOptions(instance: any) {
   const {

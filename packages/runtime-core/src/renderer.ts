@@ -4,6 +4,7 @@ import { normalizeVnode, renderComponentRoot } from './componentRenderUtils'
 import { createComponentInstance, setupComponent } from './component'
 import { ReactiveEffect } from 'packages/reactivity/src/effect'
 import { queuePreFlushCb } from 'packages/runtime-core/src/scheduler'
+import { createAppAPI } from './apiCreateApp'
 
 export interface RendererOptions {
   patchProp(el: Element, key: string, prevValue: any, nextValue: any): void
@@ -392,7 +393,8 @@ function baseCreateRenderer(opitons: RendererOptions): any {
     container._vnode = vnode
   }
   return {
-    render
+    render,
+    createApp: createAppAPI(render)
   }
 }
 
